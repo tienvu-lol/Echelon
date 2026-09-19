@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     # the Gemini service raises an explicit error at call-time instead.
     google_api_key: SecretStr | None = None
 
+    # Firebase Authentication
+    firebase_credentials_path: str | None = None
+
 
 settings = Settings()
 
