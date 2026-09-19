@@ -53,3 +53,39 @@ def ping_gemini() -> str:
             "Gemini provider request failed. Check logs for details."
         ) from exc
 
+
+from google.genai import types
+from app.models.student import ParsedProfile
+
+def parse_resume(pdf_bytes: bytes, bio: str | None = None, interests: str | None = None) -> ParsedProfile:
+    """Parse a resume PDF into a structured profile."""
+    client = _get_client()
+    
+    prompt_parts = [
+        "You are an expert career counselor.",
+        "Parse the following student resume into a structured profile.",
+        "Extract the student's major, year (e.g. Freshman/Sophomore/Junior/Senior), skills, interests, coursework, and experience."
+    ]
+    if bio:
+        prompt_parts.append(f"Additional Bio provided by student: {bio}")
+    if interests:
+        prompt_parts.append(f"Additional Interests provided by student: {interests}")
+        
+    prompt = "\n".join(prompt_parts)
+    
+    pdf_part = types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf")
+    
+    try:
+        response = client.models.generate_content(
+            model="gemini-3.5-flash",
+            contents=[prompt, pdf_part],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=ParsedProfile,
+            ),
+        )
+        return response.parsed
+    except GeminiServiceError:
+        raise
+    except Exception as exc:
+        raise GeminiServiceError(f"Failed to parse resume: {str(exc)}") from exc
