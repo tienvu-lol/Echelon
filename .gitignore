@@ -5,3 +5,9 @@
 .venv/
 __pycache__/
 .pytest_cache/
+
+# Local AI coding-tool configuration
+.agents/
+.ai-dev-kit/
+.gemini/
+GEMINI.md

@@ -3,6 +3,7 @@
 from fastapi import FastAPI
 
 from app.api.health import router as health_router
+from app.api.test_databricks_route import router as test_databricks_router
 from app.api.test_gemini_route import router as test_gemini_router
 from app.core.config import settings
 
@@ -14,3 +15,4 @@ app = FastAPI(
 app.include_router(health_router)
 
 app.include_router(test_gemini_router)
+app.include_router(test_databricks_router)
