@@ -7,11 +7,11 @@ Echelon helps Virginia Tech students discover campus opportunities (internships,
 ## Architecture
 
 ```
-Expo Mobile App → FastAPI Backend → Gemini API (AI)
-                                  → Databricks (Data Platform)
+iOS Native App → FastAPI Backend → Gemini API (AI)
+                                 → Databricks (Data Platform)
 ```
 
-- **Mobile**: React Native + Expo + TypeScript + Expo Router
+- **Mobile**: Swift, SwiftUI, iOS 17+
 - **Backend**: Python 3.12+ + FastAPI + Pydantic
 - **AI**: Google Gemini API (resume parsing, embeddings, match explanations)
 - **Data**: Databricks (Delta tables, Unity Catalog, AI Search)
@@ -53,19 +53,15 @@ uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 Verify: Open http://localhost:8000/health — should return `{"status": "ok"}`
 
-### 3. Mobile Setup
+### 3. Mobile Setup (Requires macOS)
 
-```powershell
-cd mobile
+Open `ios/Echelon/EchelonApp.swift` or the Xcode project (once generated) on a Mac:
 
-# Install dependencies
-npm install
-
-# Start Expo dev server
-npx expo start
-```
-
-Scan the QR code with Expo Go on your phone, or press `w` for web.
+1. Open Xcode on your Mac.
+2. Create a new iOS App project (or open the generated one).
+3. Add the `.swift` files from `ios/Echelon/` to the project.
+4. Set `EXPO_PUBLIC_API_BASE_URL` logic via a build setting or hardcoded constant for now.
+5. Hit `Cmd + R` to run in the iOS Simulator.
 
 ### 4. Test Backend Services
 
@@ -113,10 +109,11 @@ Echelon/
 │   │   └── main.py    # FastAPI application
 │   ├── tests/         # pytest test suite
 │   └── pyproject.toml
-├── mobile/            # React Native Expo app
-│   ├── app/           # Expo Router screens
-│   ├── services/      # API client
-│   └── types/         # TypeScript interfaces
+├── ios/               # Swift / SwiftUI App
+│   └── Echelon/
+│       ├── Models/    # Swift Codable Structs
+│       ├── Services/  # API Client
+│       └── Views/     # SwiftUI Views
 ├── docs/              # Architecture documentation
 ├── ingestion/         # Data ingestion scripts (future)
 ├── tasks/             # Task tracking

@@ -21,7 +21,7 @@ FastAPI is the sole orchestration layer. The mobile app never contacts Gemini or
 
 | Layer | Technology |
 |---|---|
-| Mobile | React Native, Expo SDK 57, TypeScript, Expo Router |
+| Mobile | Swift, SwiftUI, iOS 17+ |
 | Backend | Python 3.12+, FastAPI, Pydantic, uv |
 | AI | Google Gemini API via `google-genai` SDK |
 | Data | Databricks (Delta, Unity Catalog, AI Search) via `databricks-sdk` |
@@ -49,7 +49,7 @@ FastAPI is the sole orchestration layer. The mobile app never contacts Gemini or
 | `backend/app/services/recommendations.py` | Recommendation pipeline (future) |
 | `backend/app/config.py` | Settings from environment variables |
 | `backend/app/models/` | Pydantic data models |
-| `mobile/services/api.ts` | Mobile → Backend API client |
+| `ios/Echelon/Services/APIService.swift` | iOS → Backend API client |
 
 ## Data Models
 

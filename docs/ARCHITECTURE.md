@@ -6,8 +6,8 @@ Echelon is a three-tier application: mobile client, API backend, and two externa
 
 ```
 ┌─────────────┐     HTTP/JSON     ┌──────────────┐     SDK      ┌──────────────┐
-│   Expo App  │ ──────────────── │   FastAPI    │ ──────────── │  Gemini API  │
-│  (Mobile)   │                  │  (Backend)   │              │  (Google)    │
+│  iOS App    │ ──────────────── │   FastAPI    │ ──────────── │  Gemini API  │
+│  (SwiftUI)  │                  │  (Backend)   │              │  (Google)    │
 └─────────────┘                  │              │     SDK      ┌──────────────┐
                                  │              │ ──────────── │  Databricks  │
                                  └──────────────┘              │  (Data)      │
@@ -42,8 +42,8 @@ All Databricks calls are in `backend/app/services/databricks.py`.
 ## Recommendation Pipeline
 
 ```
-1. Student uploads resume via Expo
-2. Expo sends PDF + metadata to FastAPI
+1. Student uploads resume via iOS App
+2. iOS App sends PDF + metadata to FastAPI
 3. FastAPI sends document to Gemini
 4. Gemini returns structured StudentProfile (JSON schema)
 5. FastAPI validates with Pydantic
@@ -55,7 +55,7 @@ All Databricks calls are in `backend/app/services/databricks.py`.
 11. AI Search applies metadata filters (class year, major, deadline, type)
 12. FastAPI receives candidate set
 13. FastAPI sends finalists to Gemini for personalized explanations
-14. FastAPI returns opportunity cards to Expo
+14. FastAPI returns opportunity cards to iOS App
 15. Every swipe is recorded in Databricks
 ```
 
