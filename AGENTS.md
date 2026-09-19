@@ -47,3 +47,32 @@ Run:
 
 Tests:
 `uv run pytest`
+
+## Backend Architecture
+
+Backend integrations must remain isolated behind service modules.
+
+External providers:
+- Gemini / Google Agent Platform -> Gemini service
+- Databricks -> Databricks service
+- Firebase -> authentication service/dependency
+
+API routes must not contain provider-specific business logic.
+
+Do not directly couple provider services to each other.
+For example:
+- GeminiService must not instantiate DatabricksService.
+- DatabricksService must not instantiate GeminiService.
+- Firebase authentication must not contain recommendation logic.
+
+Cross-service orchestration belongs in a dedicated application/service layer.
+
+Before modifying shared configuration, API contracts, dependencies,
+models, or app initialization, inspect existing implementations and
+avoid breaking other integrations.
+
+Never rename or change an existing environment variable without
+coordinating the change.
+
+Never modify another integration's service files unless the current
+task explicitly requires it.

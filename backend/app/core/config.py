@@ -1,5 +1,6 @@
 """Application configuration loaded from environment variables."""
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -23,6 +24,11 @@ class Settings(BaseSettings):
     debug: bool = False
 
     # Future: add GEMINI_API_KEY, DATABRICKS_* etc. here when needed.
+    # Gemini / Google Cloud Agent Platform
+    # Populated from GOOGLE_API_KEY environment variable.
+    # Optional so the server starts cleanly even without the key set;
+    # the Gemini service raises an explicit error at call-time instead.
+    google_api_key: SecretStr | None = None
 
 
 settings = Settings()
