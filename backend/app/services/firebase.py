@@ -1,7 +1,10 @@
 """Firebase Authentication service."""
+import logging
 import firebase_admin
 from firebase_admin import credentials, auth
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 class FirebaseServiceError(Exception):
     """Raised when a Firebase operation fails."""
@@ -32,13 +35,11 @@ class FirebaseService:
                 firebase_admin.initialize_app(cred)
             else:
                 # Initialize with default application credentials
-                # This relies on GOOGLE_APPLICATION_CREDENTIALS or similar being set
                 firebase_admin.initialize_app()
             cls._initialized = True
         except Exception as e:
-            # Catch initialization errors for graceful degradation.
-            # Real errors will be raised when attempting to verify tokens.
-            pass
+            logger.error(f"Failed to initialize Firebase Admin SDK: {e}")
+            raise FirebaseServiceError("Failed to initialize authentication service.") from e
 
     @staticmethod
     def verify_token(id_token: str) -> dict:
@@ -49,8 +50,6 @@ class FirebaseService:
             decoded_token = auth.verify_id_token(id_token)
             return decoded_token
         except Exception as e:
-            raise FirebaseServiceError(f"Token verification failed: {str(e)}")
-
-# Attempt initialization on import
-FirebaseService.initialize()
+            logger.error(f"Firebase token verification failed: {e}")
+            raise FirebaseServiceError("Invalid or expired authentication token") from e
 

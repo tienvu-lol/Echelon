@@ -11,7 +11,23 @@ Response:
   "status": "ok"
 }
 
-## POST /profiles/parse
+## GET /api/auth/me
+
+Requires: `Authorization: Bearer <Firebase ID Token>`
+
+Response:
+```json
+{
+  "status": "authenticated",
+  "uid": "user123",
+  "email": "user@example.com",
+  "token_data": { ... }
+}
+```
+
+## POST /api/profile/parse
+
+Requires: `Authorization: Bearer <Firebase ID Token>`
 
 Accepts:
 multipart/form-data
@@ -25,7 +41,7 @@ Returns:
 
 {
   "major": "Computer Science",
-  "year": "Sophomore",
+  "class_year": "Sophomore",
   "skills": ["Python", "Java"],
   "interests": ["AI", "Cybersecurity"],
   "coursework": ["Data Structures"],

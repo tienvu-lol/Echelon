@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, status
 from app.api.deps import get_current_user
 from app.services.gemini_service import parse_resume, GeminiServiceError
-from app.models.student import ParsedProfile
+from app.models.student import StudentProfile
 
 router = APIRouter(prefix="/api/profile", tags=["profile"])
 
-@router.post("/parse", response_model=ParsedProfile)
+@router.post("/parse", response_model=StudentProfile)
 async def parse_profile_route(
     resume: UploadFile = File(...),
     bio: str | None = Form(None),

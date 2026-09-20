@@ -21,7 +21,7 @@ def test_parse_profile_success():
     
     mock_parsed = {
         "major": "Computer Science",
-        "year": "Junior",
+        "class_year": "Junior",
         "skills": ["Python", "Swift"],
         "interests": ["Mobile Dev"],
         "coursework": ["Algorithms"],
@@ -40,5 +40,5 @@ def test_parse_profile_success():
             assert response.status_code == 200
             data = response.json()
             assert data["major"] == "Computer Science"
-            assert data["year"] == "Junior"
+            assert data["class_year"] == "Junior"
             assert "Python" in data["skills"]

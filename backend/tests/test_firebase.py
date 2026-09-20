@@ -32,8 +32,7 @@ def test_firebase_verify_token_failure():
         with pytest.raises(FirebaseServiceError) as exc_info:
             FirebaseService.verify_token(mock_token)
             
-        assert "Token verification failed" in str(exc_info.value)
-        assert "Expired token" in str(exc_info.value)
+        assert "Invalid or expired authentication token" in str(exc_info.value)
 
 def test_get_current_user_dependency_success():
     """Test the FastAPI dependency successfully returning a user."""

@@ -55,16 +55,16 @@ def ping_gemini() -> str:
 
 
 from google.genai import types
-from app.models.student import ParsedProfile
+from app.models.student import StudentProfile
 
-def parse_resume(pdf_bytes: bytes, bio: str | None = None, interests: str | None = None) -> ParsedProfile:
+def parse_resume(pdf_bytes: bytes, bio: str | None = None, interests: str | None = None) -> StudentProfile:
     """Parse a resume PDF into a structured profile."""
     client = _get_client()
     
     prompt_parts = [
         "You are an expert career counselor.",
         "Parse the following student resume into a structured profile.",
-        "Extract the student's major, year (e.g. Freshman/Sophomore/Junior/Senior), skills, interests, coursework, and experience."
+        "Extract the student's major, class year (e.g. Freshman/Sophomore/Junior/Senior), skills, interests, coursework, and experience."
     ]
     if bio:
         prompt_parts.append(f"Additional Bio provided by student: {bio}")
@@ -81,7 +81,7 @@ def parse_resume(pdf_bytes: bytes, bio: str | None = None, interests: str | None
             contents=[prompt, pdf_part],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
-                response_schema=ParsedProfile,
+                response_schema=StudentProfile,
             ),
         )
         return response.parsed
