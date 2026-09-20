@@ -13,7 +13,7 @@ class ExploreViewController: UIViewController, OpportunityCardDelegate {
     // Card Deck Container
     private let cardDeckContainer = UIView()
     private var cardViews: [OpportunityCardView] = []
-    private var opportunities: [OpportunityCard] = OpportunityCard.mockDeck
+    private var opportunities: [OpportunityCard] = []
     
     // Action Buttons Bar
     private let actionButtonsStack = UIStackView()
@@ -35,7 +35,7 @@ class ExploreViewController: UIViewController, OpportunityCardDelegate {
     override func viewDidLoad() {
         super.viewDidLoad()
         setupUI()
-        loadCards()
+        loadRecommendations()
     }
     
     private func setupUI() {
@@ -241,11 +241,10 @@ class ExploreViewController: UIViewController, OpportunityCardDelegate {
         ])
     }
     
-    private func loadCards() {
+    private func renderCards() {
         cardViews.forEach { $0.removeFromSuperview() }
         cardViews.removeAll()
-        
-        opportunities = OpportunityCard.mockDeck
+
         updateCountLabel()
         
         let initialCards = Array(opportunities.prefix(3))
@@ -274,6 +273,48 @@ class ExploreViewController: UIViewController, OpportunityCardDelegate {
         
         updateEmptyState()
     }
+
+    private func loadRecommendations() {
+        showEmptyState(
+            title: "Loading recommendations…",
+            subtitle: "Fetching personalized opportunities."
+        )
+
+        Task { [weak self] in
+            guard let self else { return }
+
+            do {
+                let response = try await APIService.shared.getRecommendations(limit: 10)
+                self.opportunities = response.opportunities.map(\.card)
+
+                if self.opportunities.isEmpty {
+                    self.showEmptyState(
+                        title: "No recommendations yet",
+                        subtitle: "Refresh to check for new opportunities."
+                    )
+                } else {
+                    self.renderCards()
+                }
+            } catch {
+                self.opportunities = []
+                self.showEmptyState(
+                    title: "Unable to load recommendations",
+                    subtitle: error.localizedDescription
+                )
+            }
+        }
+    }
+
+    private func showEmptyState(title: String, subtitle: String) {
+        cardViews.forEach { $0.removeFromSuperview() }
+        cardViews.removeAll()
+        emptyTitleLabel.text = title
+        emptySubtitleLabel.text = subtitle
+        emptyStateView.isHidden = false
+        actionButtonsStack.isHidden = true
+        cardDeckContainer.isHidden = true
+        countLabel.text = "0 opportunities"
+    }
     
     private func updateCountLabel() {
         countLabel.text = "\(opportunities.count) opportunities"
@@ -300,11 +341,24 @@ class ExploreViewController: UIViewController, OpportunityCardDelegate {
     }
     
     func cardDidTapInfo(_ card: OpportunityCardView) {
+        var message = "\(card.opportunity.organization)\n\n\(card.opportunity.description)"
+        if let explanation = card.opportunity.explanation, !explanation.isEmpty {
+            message += "\n\nWhy it matches: \(explanation)"
+        }
+
         let alert = UIAlertController(
             title: card.opportunity.title,
-            message: "\(card.opportunity.organization)\n\n\(card.opportunity.description)\n\nPerks: Competitive stipend, 1-on-1 mentorship, housing support.",
+            message: message,
             preferredStyle: .actionSheet
         )
+        if let rawURL = card.opportunity.applyUrl,
+           let url = URL(string: rawURL),
+           ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+           url.host != nil {
+            alert.addAction(UIAlertAction(title: "Open Application", style: .default) { _ in
+                UIApplication.shared.open(url)
+            })
+        }
         alert.addAction(UIAlertAction(title: "Close", style: .cancel))
         if let popover = alert.popoverPresentationController {
             popover.sourceView = card
@@ -379,7 +433,14 @@ class ExploreViewController: UIViewController, OpportunityCardDelegate {
     
     @objc private func didTapApply() {
         guard let topCard = cardViews.first else { return }
-        topCard.swipeRight()
+        guard let rawURL = topCard.opportunity.applyUrl,
+              let url = URL(string: rawURL),
+              ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+              url.host != nil else {
+            cardDidTapInfo(topCard)
+            return
+        }
+        UIApplication.shared.open(url)
     }
     
     @objc private func didTapStar() {
@@ -397,6 +458,6 @@ class ExploreViewController: UIViewController, OpportunityCardDelegate {
     @objc private func didTapRefresh() {
         let generator = UIImpactFeedbackGenerator(style: .medium)
         generator.impactOccurred()
-        loadCards()
+        loadRecommendations()
     }
 }

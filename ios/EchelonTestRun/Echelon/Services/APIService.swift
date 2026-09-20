@@ -1,15 +1,22 @@
 import Foundation
+import FirebaseAuth
 
 enum APIError: LocalizedError {
     case invalidURL
-    case requestFailed(String)
+    case authenticationRequired
+    case profileRequired
+    case requestFailed(statusCode: Int, message: String)
     case decodingError(Error?)
 
     var errorDescription: String? {
         switch self {
         case .invalidURL:
             return "The requested URL is invalid."
-        case .requestFailed(let message):
+        case .authenticationRequired:
+            return "Sign in with Firebase before loading recommendations."
+        case .profileRequired:
+            return "Complete onboarding before loading recommendations."
+        case .requestFailed(_, let message):
             return "Request failed: \(message)"
         case .decodingError(let error):
             if let error = error {
@@ -20,6 +27,7 @@ enum APIError: LocalizedError {
     }
 }
 
+@MainActor
 final class APIService {
     static let shared = APIService()
     
@@ -40,19 +48,15 @@ final class APIService {
         return try await fetch(endpoint: "/health")
     }
     
-    func getRecommendations(studentId: String, limit: Int = 10) async throws -> [OpportunityCard] {
-        struct RecResponse: Codable {
-            let student_id: String
-            let opportunities: [OpportunityCard]
+    func getRecommendations(limit: Int = 10) async throws -> RecommendationsResponse {
+        do {
+            return try await authenticatedFetch(
+                endpoint: "/api/opportunities/recommendations",
+                queryItems: [URLQueryItem(name: "limit", value: "\(limit)")]
+            )
+        } catch APIError.requestFailed(let statusCode, _) where statusCode == 404 {
+            throw APIError.profileRequired
         }
-        
-        let queryItems = [
-            URLQueryItem(name: "student_id", value: studentId),
-            URLQueryItem(name: "limit", value: "\(limit)")
-        ]
-        
-        let res: RecResponse = try await fetch(endpoint: "/api/opportunities/recommendations", queryItems: queryItems)
-        return res.opportunities
     }
     
     func recordSwipe(studentId: String, opportunityId: String, direction: String) async throws -> SwipeResponse {
@@ -72,6 +76,22 @@ final class APIService {
     }
     
     // MARK: - Networking Helpers
+
+    private func authenticatedFetch<T: Decodable>(
+        endpoint: String,
+        queryItems: [URLQueryItem]? = nil
+    ) async throws -> T {
+        guard let user = AuthService.shared.currentUser else {
+            throw APIError.authenticationRequired
+        }
+
+        let token = try await user.getIDToken()
+        return try await fetch(
+            endpoint: endpoint,
+            queryItems: queryItems,
+            headers: ["Authorization": "Bearer \(token)"]
+        )
+    }
     
     private func fetch<T: Decodable>(
         endpoint: String,
@@ -100,7 +120,10 @@ final class APIService {
         
         guard let httpRes = response as? HTTPURLResponse, (200...299).contains(httpRes.statusCode) else {
             let errorMsg = String(data: data, encoding: .utf8) ?? "Unknown Error"
-            throw APIError.requestFailed(errorMsg)
+            throw APIError.requestFailed(
+                statusCode: (response as? HTTPURLResponse)?.statusCode ?? -1,
+                message: errorMsg
+            )
         }
         
         do {
@@ -131,7 +154,10 @@ final class APIService {
         
         guard let httpRes = response as? HTTPURLResponse, (200...299).contains(httpRes.statusCode) else {
             let errorMsg = String(data: data, encoding: .utf8) ?? "Unknown Error"
-            throw APIError.requestFailed(errorMsg)
+            throw APIError.requestFailed(
+                statusCode: (response as? HTTPURLResponse)?.statusCode ?? -1,
+                message: errorMsg
+            )
         }
         
         do {

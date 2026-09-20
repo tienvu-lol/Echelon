@@ -228,7 +228,7 @@ class OpportunityCardView: UIView {
         descriptionLabel.numberOfLines = 3
         bottomContainerView.addSubview(descriptionLabel)
         
-        // Footer (Deadline + Perks)
+        // Footer (Deadline + Details)
         footerStack.translatesAutoresizingMaskIntoConstraints = false
         footerStack.axis = .horizontal
         footerStack.distribution = .equalSpacing
@@ -240,7 +240,7 @@ class OpportunityCardView: UIView {
         deadlineLabel.textColor = AppTheme.Colors.textSecondary
         footerStack.addArrangedSubview(deadlineLabel)
         
-        perksButton.setTitle("↓ Perks", for: .normal)
+        perksButton.setTitle("Details", for: .normal)
         perksButton.titleLabel?.font = AppTheme.Typography.labelBold
         perksButton.setTitleColor(AppTheme.Colors.textSecondary, for: .normal)
         perksButton.addTarget(self, action: #selector(didTapInfo), for: .touchUpInside)
@@ -299,15 +299,17 @@ class OpportunityCardView: UIView {
     
     private func configure(with opp: OpportunityCard) {
         orgNameLabel.text = opp.organization
-        orgLocationLabel.text = opp.location ?? "Remote"
+        orgLocationLabel.text = opp.location
+        orgLocationLabel.isHidden = opp.location == nil
         
         let iconName = opp.companyLogoName ?? "shield.lefthalf.filled"
         orgIconImageView.image = UIImage(systemName: iconName)
         
         if let match = opp.matchPercentage {
             matchScoreView.percentage = match
+            matchScoreView.isHidden = false
         } else {
-            matchScoreView.percentage = 80
+            matchScoreView.isHidden = true
         }
         
         // Configure Type Pill dynamically
@@ -336,7 +338,9 @@ class OpportunityCardView: UIView {
         )
         
         titleLabel.text = opp.title
-        descriptionLabel.text = opp.description
+        descriptionLabel.text = opp.explanation?.isEmpty == false
+            ? opp.explanation
+            : opp.description
         
         // Info Row items (Typography · Label 11 px)
         infoRowStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
@@ -380,8 +384,8 @@ class OpportunityCardView: UIView {
             ))
             deadlineLabel.attributedText = attributed
         } else {
-            deadlineLabel.text = "Rolling Applications"
-            deadlineLabel.font = AppTheme.Typography.label
+            deadlineLabel.attributedText = nil
+            deadlineLabel.text = nil
         }
     }
     

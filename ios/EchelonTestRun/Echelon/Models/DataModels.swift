@@ -22,6 +22,116 @@ struct StudentProfile: Codable, Identifiable, Equatable {
     }
 }
 
+struct CareerTrackAffinity: Codable, Equatable, Hashable {
+    let track: String
+    let weight: Double
+}
+
+struct Opportunity: Codable, Identifiable, Equatable, Hashable {
+    let id: String
+    let title: String
+    let organization: String
+    let opportunityType: String
+    let description: String
+    let sourceUrl: String
+    let sourceName: String?
+    let sourceAge: String?
+    let active: Bool
+    let firstSeenAt: String?
+    let lastSeenAt: String?
+    let skills: [String]
+    let interests: [String]
+    let eligibility: [String]
+    let majors: [String]
+    let classYears: [String]
+    let schoolRestrictions: [String]
+    let eligibilityNotes: [String]
+    let degreeLevels: [String]
+    let workAuthorizationRequirements: [String]
+    let careerTracks: [CareerTrackAffinity]
+    let location: String?
+    let remoteStatus: String?
+    let timeCommitment: String?
+    let compensation: String?
+    let deadline: String?
+    let applyUrl: String?
+    let contactName: String?
+    let contactEmail: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, organization, description, active, skills, interests
+        case eligibility, majors, location, compensation, deadline
+        case opportunityType = "opportunity_type"
+        case sourceUrl = "source_url"
+        case sourceName = "source_name"
+        case sourceAge = "source_age"
+        case firstSeenAt = "first_seen_at"
+        case lastSeenAt = "last_seen_at"
+        case classYears = "class_years"
+        case schoolRestrictions = "school_restrictions"
+        case eligibilityNotes = "eligibility_notes"
+        case degreeLevels = "degree_levels"
+        case workAuthorizationRequirements = "work_authorization_requirements"
+        case careerTracks = "career_tracks"
+        case remoteStatus = "remote_status"
+        case timeCommitment = "time_commitment"
+        case applyUrl = "apply_url"
+        case contactName = "contact_name"
+        case contactEmail = "contact_email"
+    }
+}
+
+struct RecommendationItem: Codable, Identifiable, Equatable, Hashable {
+    let opportunity: Opportunity
+    let score: Double
+    let matchReason: String
+    let matchedTraits: [String]
+    let gaps: [String]
+    let careerTrackFit: [String]
+    let eligibilityStatus: String
+    let eligibilityNotes: [String]
+
+    var id: String { opportunity.id }
+
+    enum CodingKeys: String, CodingKey {
+        case opportunity, score, gaps
+        case matchReason = "match_reason"
+        case matchedTraits = "matched_traits"
+        case careerTrackFit = "career_track_fit"
+        case eligibilityStatus = "eligibility_status"
+        case eligibilityNotes = "eligibility_notes"
+    }
+
+    var card: OpportunityCard {
+        OpportunityCard(
+            id: opportunity.id,
+            title: opportunity.title,
+            organization: opportunity.organization,
+            opportunityType: opportunity.opportunityType,
+            description: opportunity.description,
+            skills: opportunity.skills,
+            location: opportunity.location,
+            paid: nil,
+            deadline: opportunity.deadline,
+            applyUrl: opportunity.applyUrl,
+            explanation: matchReason,
+            compensation: opportunity.compensation,
+            duration: opportunity.timeCommitment,
+            matchPercentage: min(100, max(0, Int(score.rounded())))
+        )
+    }
+}
+
+struct RecommendationsResponse: Codable, Equatable {
+    let studentId: String
+    let opportunities: [RecommendationItem]
+
+    enum CodingKeys: String, CodingKey {
+        case opportunities
+        case studentId = "student_id"
+    }
+}
+
 struct OpportunityCard: Codable, Identifiable, Equatable, Hashable {
     let id: String
     let title: String
