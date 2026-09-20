@@ -68,9 +68,9 @@ class ProfileViewController: UIViewController {
         
         // Scroll View
         scrollView.translatesAutoresizingMaskIntoConstraints = false
-        scrollView.showsVerticalScrollIndicator = false
+        scrollView.showsVerticalScrollIndicator = true
         scrollView.alwaysBounceVertical = true
-        scrollView.delaysContentTouches = false
+        scrollView.delaysContentTouches = true
         scrollView.canCancelContentTouches = true
         scrollView.contentInset = UIEdgeInsets(top: AppTheme.Spacing.s12, left: 0, bottom: 120, right: 0)
         view.addSubview(scrollView)
@@ -113,6 +113,12 @@ class ProfileViewController: UIViewController {
         setupSkillsCard()
         setupPreferencesCard()
         setupResumeCard()
+        
+        // Pass drag touches directly to scrollView for smooth scrolling
+        statsStack.isUserInteractionEnabled = false
+        educationCard.isUserInteractionEnabled = false
+        skillsCard.isUserInteractionEnabled = false
+        preferencesCard.isUserInteractionEnabled = false
     }
     
     private func setupTopHeader() {
@@ -570,7 +576,7 @@ class ProfileViewController: UIViewController {
     @objc private func didTapSettings() {
         let settingsView = ProfileSettingsView()
         let hosting = UIHostingController(rootView: settingsView)
-        hosting.modalPresentationStyle = .pageSheet
+        hosting.modalPresentationStyle = .fullScreen
         present(hosting, animated: true)
     }
     

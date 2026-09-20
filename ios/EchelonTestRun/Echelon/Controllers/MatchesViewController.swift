@@ -121,10 +121,11 @@ class MatchesViewController: UIViewController, UITableViewDataSource, UITableVie
         tableView.translatesAutoresizingMaskIntoConstraints = false
         tableView.backgroundColor = .clear
         tableView.separatorStyle = .none
-        tableView.showsVerticalScrollIndicator = false
+        tableView.showsVerticalScrollIndicator = true
         tableView.alwaysBounceVertical = true
-        tableView.delaysContentTouches = false
-        tableView.contentInset = UIEdgeInsets(top: AppTheme.Spacing.s4, left: 0, bottom: AppTheme.Spacing.s20, right: 0)
+        tableView.delaysContentTouches = true
+        tableView.canCancelContentTouches = true
+        tableView.contentInset = UIEdgeInsets(top: AppTheme.Spacing.s4, left: 0, bottom: 100, right: 0)
         tableView.dataSource = self
         tableView.delegate = self
         tableView.register(MatchTableViewCell.self, forCellReuseIdentifier: MatchTableViewCell.identifier)
@@ -286,11 +287,7 @@ class MatchesViewController: UIViewController, UITableViewDataSource, UITableVie
     private func openOpportunityDetail(for opportunity: OpportunityCard) {
         let detailView = OpportunityDetailView(opportunity: opportunity)
         let hostingController = UIHostingController(rootView: detailView)
-        hostingController.modalPresentationStyle = .pageSheet
-        if let sheet = hostingController.sheetPresentationController {
-            sheet.detents = [.large()]
-            sheet.prefersGrabberVisible = true
-        }
+        hostingController.modalPresentationStyle = .fullScreen
         present(hostingController, animated: true)
     }
     

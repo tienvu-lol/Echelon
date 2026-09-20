@@ -20,64 +20,59 @@ public struct OpportunityDetailView: View {
     }
     
     public var body: some View {
-        ZStack {
-            AppTheme.SwiftUIColors.background
-                .ignoresSafeArea()
-            
-            ScrollViewReader { scrollProxy in
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 0) {
-                        // 1. Large Hero Header Section
-                        heroSection
+        ScrollViewReader { scrollProxy in
+            ScrollView(showsIndicators: true) {
+                VStack(spacing: 0) {
+                    // 1. Large Hero Header Section
+                    heroSection
+                    
+                    // 2. Main Article Content
+                    VStack(alignment: .leading, spacing: 20) {
+                        // Quick Specs Grid
+                        specsGrid
                         
-                        // 2. Main Article Content
-                        VStack(alignment: .leading, spacing: 20) {
-                            // Quick Specs Grid
-                            specsGrid
-                            
-                            // Overview & Full Description
-                            descriptionSection
-                            
-                            // Responsibilities
-                            if let responsibilities = opportunity.responsibilities, !responsibilities.isEmpty {
-                                listSection(title: "Key Responsibilities", icon: "checklist", items: responsibilities)
-                            }
-                            
-                            // Qualifications
-                            if let qualifications = opportunity.qualifications, !qualifications.isEmpty {
-                                listSection(title: "Qualifications", icon: "checkmark.seal.fill", items: qualifications)
-                            }
-                            
-                            // Required & Preferred Skills
-                            skillsSection
-                            
-                            // Relevant Coursework
-                            if let coursework = opportunity.coursework, !coursework.isEmpty {
-                                courseworkSection(coursework: coursework)
-                            }
-                            
-                            Divider()
-                                .background(AppTheme.SwiftUIColors.border)
-                                .padding(.vertical, 8)
-                            
-                            // 3. AI Match & Chatbot Section
-                            chatbotSection
+                        // Overview & Full Description
+                        descriptionSection
+                        
+                        // Responsibilities
+                        if let responsibilities = opportunity.responsibilities, !responsibilities.isEmpty {
+                            listSection(title: "Key Responsibilities", icon: "checklist", items: responsibilities)
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.top, 18)
-                        .padding(.bottom, 60)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        
+                        // Qualifications
+                        if let qualifications = opportunity.qualifications, !qualifications.isEmpty {
+                            listSection(title: "Qualifications", icon: "checkmark.seal.fill", items: qualifications)
+                        }
+                        
+                        // Required & Preferred Skills
+                        skillsSection
+                        
+                        // Relevant Coursework
+                        if let coursework = opportunity.coursework, !coursework.isEmpty {
+                            courseworkSection(coursework: coursework)
+                        }
+                        
+                        Divider()
+                            .background(AppTheme.SwiftUIColors.border)
+                            .padding(.vertical, 8)
+                        
+                        // 3. AI Match & Chatbot Section
+                        chatbotSection
                     }
-                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 18)
+                    .padding(.bottom, 80)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .onChange(of: messages.count) { _ in
-                    withAnimation {
-                        scrollProxy.scrollTo("chatBottomAnchor", anchor: .bottom)
-                    }
+                .frame(maxWidth: .infinity)
+            }
+            .onChange(of: messages.count) { _ in
+                withAnimation {
+                    scrollProxy.scrollTo("chatBottomAnchor", anchor: .bottom)
                 }
             }
-            
         }
+        .background(AppTheme.SwiftUIColors.background.ignoresSafeArea())
         .overlay(alignment: .top) {
             // Top Bar Floating Controls - Only takes necessary space, allows full scroll underneath
             HStack {
@@ -132,7 +127,7 @@ public struct OpportunityDetailView: View {
                 }
             }
             .padding(.horizontal, 20)
-            .padding(.top, 16)
+            .padding(.top, 54)
         }
         .overlay(alignment: .bottom) {
             if showApplySuccessToast {

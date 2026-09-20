@@ -33,11 +33,13 @@ class TagPillView: UIView {
     private func setupViews(font: UIFont, cornerRadius: CGFloat) {
         layer.cornerRadius = cornerRadius
         layer.masksToBounds = true
+        isUserInteractionEnabled = false
         
         stackView.axis = .horizontal
         stackView.alignment = .center
         stackView.spacing = AppTheme.Spacing.s6
         stackView.translatesAutoresizingMaskIntoConstraints = false
+        stackView.isUserInteractionEnabled = false
         addSubview(stackView)
         
         iconImageView.contentMode = .scaleAspectFit
@@ -110,6 +112,16 @@ class TagFlowView: UIView {
     var verticalSpacing: CGFloat = AppTheme.Spacing.s8
     
     private var tagViews: [UIView] = []
+    
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isUserInteractionEnabled = false
+    }
+    
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        isUserInteractionEnabled = false
+    }
     
     func setTags(_ tags: [String], customColor: UIColor? = nil) {
         tagViews.forEach { $0.removeFromSuperview() }

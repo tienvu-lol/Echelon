@@ -50,40 +50,35 @@ public struct ProfileSettingsView: View {
     public init() {}
     
     public var body: some View {
-        NavigationView {
-            ZStack {
-                AppTheme.SwiftUIColors.background
-                    .ignoresSafeArea()
-                
-                ScrollView {
-                    VStack(spacing: 20) {
-                        // Profile Avatar Section
-                        avatarSection
-                        
-                        // Basic Info Section
-                        basicInfoCard
-                        
-                        // Skills & Coursework Section
-                        skillsAndCourseworkCard
-                        
-                        // Experience Section
-                        experienceCard
-                        
-                        // Preferences & Work Mode Card
-                        preferencesCard
-                        
-                        // Resume Card
-                        resumeCard
-                        
-                        // Destructive Zone: Sign Out & Delete Account
-                        destructiveCard
-                    }
-                    .padding(.horizontal, 18)
-                    .padding(.top, 16)
-                    .padding(.bottom, 60)
+        NavigationStack {
+            ScrollView(showsIndicators: true) {
+                VStack(spacing: 20) {
+                    // Profile Avatar Section
+                    avatarSection
+                    
+                    // Basic Info Section
+                    basicInfoCard
+                    
+                    // Skills & Coursework Section
+                    skillsAndCourseworkCard
+                    
+                    // Experience Section
+                    experienceCard
+                    
+                    // Preferences & Work Mode Card
+                    preferencesCard
+                    
+                    // Resume Card
+                    resumeCard
+                    
+                    // Destructive Zone: Sign Out & Delete Account
+                    destructiveCard
                 }
-                
+                .padding(.horizontal, 18)
+                .padding(.top, 16)
+                .padding(.bottom, 60)
             }
+            .background(AppTheme.SwiftUIColors.background.ignoresSafeArea())
             .overlay(alignment: .bottom) {
                 if showSavedToast {
                     HStack(spacing: 8) {

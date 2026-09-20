@@ -372,11 +372,7 @@ class ExploreViewController: UIViewController, OpportunityCardDelegate {
     private func openOpportunityDetail(for opportunity: OpportunityCard) {
         let detailView = OpportunityDetailView(opportunity: opportunity)
         let hostingController = UIHostingController(rootView: detailView)
-        hostingController.modalPresentationStyle = .pageSheet
-        if let sheet = hostingController.sheetPresentationController {
-            sheet.detents = [.large()]
-            sheet.prefersGrabberVisible = true
-        }
+        hostingController.modalPresentationStyle = .fullScreen
         present(hostingController, animated: true)
     }
     

@@ -234,48 +234,85 @@ public final class MatchStore: ObservableObject {
             self.studentProfile = savedProfile
         }
         
+        let deck = OpportunityCard.mockDeck
         if let notAppliedData = UserDefaults.standard.data(forKey: notAppliedKey),
            let opps = try? decoder.decode([OpportunityCard].self, from: notAppliedData),
-           !opps.isEmpty {
+           opps.count >= 8 {
             self.notAppliedMatches = opps.map {
                 MatchedOpportunity(id: UUID().uuidString, opportunity: $0, applicationStatus: .notApplied)
             }
         } else {
-            let deck = OpportunityCard.mockDeck
-            self.notAppliedMatches = [
-                MatchedOpportunity(
-                    id: "match-1",
-                    opportunity: deck.indices.contains(4) ? deck[4] : deck[0],
+            // Provide 8 rich matches so Matches tab has plenty of scrollable content
+            var matches: [MatchedOpportunity] = []
+            for (idx, opp) in deck.enumerated() {
+                matches.append(MatchedOpportunity(
+                    id: "match-notapp-\(idx + 1)",
+                    opportunity: opp,
                     applicationStatus: .notApplied
-                ),
-                MatchedOpportunity(
-                    id: "match-2",
-                    opportunity: deck[0],
-                    applicationStatus: .notApplied
+                ))
+            }
+            if let first = deck.first {
+                let duplicateOpp = OpportunityCard(
+                    id: "opp-extra-1",
+                    title: "Robotics Software Engineer Intern",
+                    organization: "Boston Dynamics",
+                    opportunityType: "Internship",
+                    description: "Work directly on next-generation athletic intelligence and humanoid manipulation pipelines.",
+                    fullDescription: "Work directly on next-generation athletic intelligence and humanoid manipulation pipelines.",
+                    skills: ["C++", "ROS", "Python", "Kinematics"],
+                    preferredSkills: ["Motion Planning", "SLAM"],
+                    qualifications: ["Proficiency in C++ and linear algebra", "Experience with ROS / Gazebo"],
+                    responsibilities: ["Implement real-time trajectory optimization in C++", "Develop simulation tools in ROS2"],
+                    coursework: ["CS 4804 Robotics", "Math 3114 Linear Algebra"],
+                    location: "Waltham, MA",
+                    workMode: "In-Person",
+                    paid: true,
+                    deadline: "April 15, 2027",
+                    applyUrl: "https://bostondynamics.com/careers",
+                    explanation: "Strong fit with your systems and C++ coursework.",
+                    compensation: "$9,200/mo",
+                    duration: "12 weeks",
+                    startDate: "May 2027",
+                    matchPercentage: 84,
+                    imageUrl: "https://images.unsplash.com/photo-1485827404703-89b55fcc595e?auto=format&fit=crop&w=800&q=80"
                 )
-            ]
+                matches.append(MatchedOpportunity(id: "match-notapp-8", opportunity: duplicateOpp, applicationStatus: .notApplied))
+            }
+            self.notAppliedMatches = matches
         }
         
         if let appliedData = UserDefaults.standard.data(forKey: appliedKey),
            let opps = try? decoder.decode([OpportunityCard].self, from: appliedData),
-           !opps.isEmpty {
+           opps.count >= 4 {
             self.appliedMatches = opps.map {
                 MatchedOpportunity(id: UUID().uuidString, opportunity: $0, applicationStatus: .applied, appliedAt: Date())
             }
         } else {
-            let deck = OpportunityCard.mockDeck
+            // Provide 4 applied matches for tab depth
             self.appliedMatches = [
                 MatchedOpportunity(
-                    id: "match-3",
-                    opportunity: deck.indices.contains(6) ? deck[6] : deck[1],
+                    id: "match-applied-1",
+                    opportunity: deck.indices.contains(6) ? deck[6] : deck[0],
                     applicationStatus: .applied,
                     appliedAt: Date().addingTimeInterval(-3600)
                 ),
                 MatchedOpportunity(
-                    id: "match-4",
-                    opportunity: deck.indices.contains(5) ? deck[5] : deck[2],
+                    id: "match-applied-2",
+                    opportunity: deck.indices.contains(5) ? deck[5] : deck[0],
                     applicationStatus: .applied,
                     appliedAt: Date().addingTimeInterval(-86400)
+                ),
+                MatchedOpportunity(
+                    id: "match-applied-3",
+                    opportunity: deck.indices.contains(3) ? deck[3] : deck[0],
+                    applicationStatus: .applied,
+                    appliedAt: Date().addingTimeInterval(-172800)
+                ),
+                MatchedOpportunity(
+                    id: "match-applied-4",
+                    opportunity: deck.indices.contains(1) ? deck[1] : deck[0],
+                    applicationStatus: .applied,
+                    appliedAt: Date().addingTimeInterval(-259200)
                 )
             ]
         }
