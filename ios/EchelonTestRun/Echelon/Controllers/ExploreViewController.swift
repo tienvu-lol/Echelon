@@ -1,8 +1,9 @@
 import UIKit
+import SwiftUI
 
 class ExploreViewController: UIViewController, OpportunityCardDelegate {
     
-    // Header Views
+    // MARK: - Header Views
     private let headerStack = UIStackView()
     private let titleLabel = UILabel()
     private let countLabel = UILabel()
@@ -10,41 +11,44 @@ class ExploreViewController: UIViewController, OpportunityCardDelegate {
     private let liveDotView = UIView()
     private let liveTextLabel = UILabel()
     
-    // Card Deck Container
+    // MARK: - Card Deck Container
     private let cardDeckContainer = UIView()
     private var cardViews: [OpportunityCardView] = []
-    private var opportunities: [OpportunityCard] = OpportunityCard.mockDeck
+    private var batchOpportunities: [OpportunityCard] = []
     
-    // Action Buttons Bar
-    private let actionButtonsStack = UIStackView()
-    private let passButton = UIButton(type: .system)
-    private let starButton = UIButton(type: .system)
-    private let applyButton = UIButton(type: .system)
-    private let infoButton = UIButton(type: .system)
-    
-    // Empty State Views
-    private let emptyStateView = UIView()
-    private let emptyIconLabel = UILabel()
-    private let emptyTitleLabel = UILabel()
-    private let emptySubtitleLabel = UILabel()
+    // MARK: - State & Status Views
+    private let statusContainerView = UIView()
+    private let statusIconLabel = UILabel()
+    private let statusTitleLabel = UILabel()
+    private let statusSubtitleLabel = UILabel()
+    private let refreshInfoLabel = UILabel()
     private let refreshButton = UIButton(type: .system)
+    private let loadingIndicator = UIActivityIndicatorView(style: .large)
     
-    // Callback when match is made
-    var onOpportunityApplied: ((OpportunityCard) -> Void)?
+    // Batching & Rate Limiting (Batches of exactly 7)
+    private let batchSize = 7
+    private var isLoadingBatch = false
     
+    // MARK: - Lifecycle
     override func viewDidLoad() {
         super.viewDidLoad()
         setupUI()
-        loadCards()
+        fetchBatch(isRefresh: false)
     }
     
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        MatchStore.shared.evaluateRateLimit()
+        updateBatchCompleteStateIfNeeded()
+    }
+    
+    // MARK: - Setup UI
     private func setupUI() {
         view.backgroundColor = AppTheme.Colors.background
         
         setupHeader()
         setupCardDeck()
-        setupActionButtons()
-        setupEmptyState()
+        setupStatusViews()
         
         NSLayoutConstraint.activate([
             // Header
@@ -53,22 +57,20 @@ class ExploreViewController: UIViewController, OpportunityCardDelegate {
             headerStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -AppTheme.Spacing.s20),
             headerStack.heightAnchor.constraint(equalToConstant: 40),
             
-            // Action Buttons
-            actionButtonsStack.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -84),
-            actionButtonsStack.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            actionButtonsStack.heightAnchor.constraint(equalToConstant: 70),
-            
-            // Card Deck Container (Tinder-sized, occupies prominent portion of screen)
-            cardDeckContainer.topAnchor.constraint(equalTo: headerStack.bottomAnchor, constant: AppTheme.Spacing.s8),
-            cardDeckContainer.bottomAnchor.constraint(equalTo: actionButtonsStack.topAnchor, constant: -AppTheme.Spacing.s12),
+            // Card Deck Container occupies prominent screen real estate without action buttons
+            cardDeckContainer.topAnchor.constraint(equalTo: headerStack.bottomAnchor, constant: AppTheme.Spacing.s12),
+            cardDeckContainer.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -96),
             cardDeckContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: AppTheme.Spacing.s12),
             cardDeckContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -AppTheme.Spacing.s12),
             
-            // Empty State
-            emptyStateView.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            emptyStateView.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: -30),
-            emptyStateView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: AppTheme.Spacing.s32),
-            emptyStateView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -AppTheme.Spacing.s32)
+            // Status / End-of-batch Container
+            statusContainerView.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            statusContainerView.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: -20),
+            statusContainerView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: AppTheme.Spacing.s32),
+            statusContainerView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -AppTheme.Spacing.s32),
+            
+            loadingIndicator.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            loadingIndicator.centerYAnchor.constraint(equalTo: view.centerYAnchor)
         ])
     }
     
@@ -79,27 +81,24 @@ class ExploreViewController: UIViewController, OpportunityCardDelegate {
         headerStack.distribution = .equalSpacing
         view.addSubview(headerStack)
         
-        // Left text: Title + Count
         let titleContainer = UIStackView()
         titleContainer.axis = .horizontal
         titleContainer.spacing = AppTheme.Spacing.s8
         titleContainer.alignment = .center
         
-        // Typography · Display · 26 px
-        titleLabel.text = "Explore"
+        titleLabel.text = "Discover"
         titleLabel.font = AppTheme.Typography.display
         titleLabel.textColor = AppTheme.Colors.textPrimary
         titleContainer.addArrangedSubview(titleLabel)
         
-        // Typography · Body · 13 px (Medium)
-        countLabel.text = "\(opportunities.count) opportunities"
+        countLabel.text = "\(batchSize) in batch"
         countLabel.font = AppTheme.Typography.bodyMedium
         countLabel.textColor = AppTheme.Colors.textSecondary
         titleContainer.addArrangedSubview(countLabel)
         
         headerStack.addArrangedSubview(titleContainer)
         
-        // Right live badge
+        // Live badge
         liveBadgeStack.axis = .horizontal
         liveBadgeStack.spacing = AppTheme.Spacing.s6
         liveBadgeStack.alignment = .center
@@ -111,7 +110,6 @@ class ExploreViewController: UIViewController, OpportunityCardDelegate {
         liveDotView.heightAnchor.constraint(equalToConstant: 7).isActive = true
         liveBadgeStack.addArrangedSubview(liveDotView)
         
-        // Typography · Label · 11 px (Bold)
         liveTextLabel.text = "Live"
         liveTextLabel.font = AppTheme.Typography.labelBold
         liveTextLabel.textColor = AppTheme.Colors.green
@@ -125,91 +123,43 @@ class ExploreViewController: UIViewController, OpportunityCardDelegate {
         view.addSubview(cardDeckContainer)
     }
     
-    private func setupActionButtons() {
-        actionButtonsStack.translatesAutoresizingMaskIntoConstraints = false
-        actionButtonsStack.axis = .horizontal
-        actionButtonsStack.spacing = AppTheme.Spacing.s18
-        actionButtonsStack.alignment = .center
-        view.addSubview(actionButtonsStack)
+    private func setupStatusViews() {
+        loadingIndicator.translatesAutoresizingMaskIntoConstraints = false
+        loadingIndicator.color = AppTheme.Colors.cyan
+        loadingIndicator.hidesWhenStopped = true
+        view.addSubview(loadingIndicator)
         
-        // 1. Pass button (X)
-        configureCircularButton(passButton, size: 48, icon: "xmark", iconColor: AppTheme.Colors.red, bgColor: AppTheme.Colors.glass, borderColor: AppTheme.Colors.border)
-        passButton.addTarget(self, action: #selector(didTapPass), for: .touchUpInside)
-        actionButtonsStack.addArrangedSubview(passButton)
+        statusContainerView.translatesAutoresizingMaskIntoConstraints = false
+        statusContainerView.isHidden = true
+        view.addSubview(statusContainerView)
         
-        // 2. Star button
-        configureCircularButton(starButton, size: 48, icon: "star.fill", iconColor: AppTheme.Colors.yellow, bgColor: AppTheme.Colors.glass, borderColor: AppTheme.Colors.border)
-        starButton.addTarget(self, action: #selector(didTapStar), for: .touchUpInside)
-        actionButtonsStack.addArrangedSubview(starButton)
+        statusIconLabel.translatesAutoresizingMaskIntoConstraints = false
+        statusIconLabel.text = "✨"
+        statusIconLabel.font = .systemFont(ofSize: 56)
+        statusIconLabel.textAlignment = .center
+        statusContainerView.addSubview(statusIconLabel)
         
-        // 3. Like/Apply button (Hero Heart)
-        configureCircularButton(applyButton, size: 66, icon: "heart.fill", iconColor: .white, bgColor: AppTheme.Colors.green, borderColor: nil)
-        applyButton.layer.shadowColor = AppTheme.Colors.green.cgColor
-        applyButton.layer.shadowOpacity = 0.55
-        applyButton.layer.shadowOffset = CGSize(width: 0, height: 4)
-        applyButton.layer.shadowRadius = 14
-        applyButton.addTarget(self, action: #selector(didTapApply), for: .touchUpInside)
-        actionButtonsStack.addArrangedSubview(applyButton)
+        statusTitleLabel.translatesAutoresizingMaskIntoConstraints = false
+        statusTitleLabel.font = AppTheme.Typography.title
+        statusTitleLabel.textColor = AppTheme.Colors.textPrimary
+        statusTitleLabel.textAlignment = .center
+        statusContainerView.addSubview(statusTitleLabel)
         
-        // 4. Info button
-        configureCircularButton(infoButton, size: 48, icon: "info.circle", iconColor: AppTheme.Colors.textSecondary, bgColor: AppTheme.Colors.glass, borderColor: AppTheme.Colors.border)
-        infoButton.addTarget(self, action: #selector(didTapInfo), for: .touchUpInside)
-        actionButtonsStack.addArrangedSubview(infoButton)
-    }
-    
-    private func configureCircularButton(_ button: UIButton, size: CGFloat, icon: String, iconColor: UIColor, bgColor: UIColor, borderColor: UIColor?) {
-        button.translatesAutoresizingMaskIntoConstraints = false
-        button.backgroundColor = bgColor
-        button.layer.cornerRadius = size / 2
-        button.layer.masksToBounds = false
+        statusSubtitleLabel.translatesAutoresizingMaskIntoConstraints = false
+        statusSubtitleLabel.font = AppTheme.Typography.body
+        statusSubtitleLabel.textColor = AppTheme.Colors.textSecondary
+        statusSubtitleLabel.textAlignment = .center
+        statusSubtitleLabel.numberOfLines = 3
+        statusContainerView.addSubview(statusSubtitleLabel)
         
-        if let borderColor = borderColor {
-            button.layer.borderWidth = 1.0
-            button.layer.borderColor = borderColor.cgColor
-        }
+        refreshInfoLabel.translatesAutoresizingMaskIntoConstraints = false
+        refreshInfoLabel.font = AppTheme.Typography.labelBold
+        refreshInfoLabel.textColor = AppTheme.Colors.cyan
+        refreshInfoLabel.textAlignment = .center
+        statusContainerView.addSubview(refreshInfoLabel)
         
-        let config = UIImage.SymbolConfiguration(pointSize: size * 0.4, weight: .bold)
-        let img = UIImage(systemName: icon, withConfiguration: config)
-        button.setImage(img, for: .normal)
-        button.tintColor = iconColor
-        
-        NSLayoutConstraint.activate([
-            button.widthAnchor.constraint(equalToConstant: size),
-            button.heightAnchor.constraint(equalToConstant: size)
-        ])
-    }
-    
-    private func setupEmptyState() {
-        emptyStateView.translatesAutoresizingMaskIntoConstraints = false
-        emptyStateView.isHidden = true
-        view.addSubview(emptyStateView)
-        
-        emptyIconLabel.translatesAutoresizingMaskIntoConstraints = false
-        emptyIconLabel.text = "🎓"
-        emptyIconLabel.font = .systemFont(ofSize: 64)
-        emptyIconLabel.textAlignment = .center
-        emptyStateView.addSubview(emptyIconLabel)
-        
-        // Typography · Title · 22 px
-        emptyTitleLabel.translatesAutoresizingMaskIntoConstraints = false
-        emptyTitleLabel.text = "You've seen them all"
-        emptyTitleLabel.font = AppTheme.Typography.title
-        emptyTitleLabel.textColor = AppTheme.Colors.textPrimary
-        emptyTitleLabel.textAlignment = .center
-        emptyStateView.addSubview(emptyTitleLabel)
-        
-        // Typography · Body · 13 px
-        emptySubtitleLabel.translatesAutoresizingMaskIntoConstraints = false
-        emptySubtitleLabel.text = "New opportunities are added weekly.\nRefresh to see more."
-        emptySubtitleLabel.font = AppTheme.Typography.body
-        emptySubtitleLabel.textColor = AppTheme.Colors.textSecondary
-        emptySubtitleLabel.textAlignment = .center
-        emptySubtitleLabel.numberOfLines = 2
-        emptyStateView.addSubview(emptySubtitleLabel)
-        
-        // Refresh Button with Radii · 16 px & Blue
         refreshButton.translatesAutoresizingMaskIntoConstraints = false
-        refreshButton.setTitle("Refresh", for: .normal)
+        refreshButton.setTitle("Refresh Opportunities", for: .normal)
         refreshButton.titleLabel?.font = AppTheme.Typography.cardTitleBold
         refreshButton.setTitleColor(.white, for: .normal)
         refreshButton.backgroundColor = AppTheme.Colors.blue
@@ -219,36 +169,100 @@ class ExploreViewController: UIViewController, OpportunityCardDelegate {
         refreshButton.layer.shadowOffset = CGSize(width: 0, height: 4)
         refreshButton.layer.shadowRadius = 10
         refreshButton.addTarget(self, action: #selector(didTapRefresh), for: .touchUpInside)
-        emptyStateView.addSubview(refreshButton)
+        statusContainerView.addSubview(refreshButton)
         
         NSLayoutConstraint.activate([
-            emptyIconLabel.topAnchor.constraint(equalTo: emptyStateView.topAnchor),
-            emptyIconLabel.centerXAnchor.constraint(equalTo: emptyStateView.centerXAnchor),
+            statusIconLabel.topAnchor.constraint(equalTo: statusContainerView.topAnchor),
+            statusIconLabel.centerXAnchor.constraint(equalTo: statusContainerView.centerXAnchor),
             
-            emptyTitleLabel.topAnchor.constraint(equalTo: emptyIconLabel.bottomAnchor, constant: AppTheme.Spacing.s16),
-            emptyTitleLabel.leadingAnchor.constraint(equalTo: emptyStateView.leadingAnchor),
-            emptyTitleLabel.trailingAnchor.constraint(equalTo: emptyStateView.trailingAnchor),
+            statusTitleLabel.topAnchor.constraint(equalTo: statusIconLabel.bottomAnchor, constant: AppTheme.Spacing.s12),
+            statusTitleLabel.leadingAnchor.constraint(equalTo: statusContainerView.leadingAnchor),
+            statusTitleLabel.trailingAnchor.constraint(equalTo: statusContainerView.trailingAnchor),
             
-            emptySubtitleLabel.topAnchor.constraint(equalTo: emptyTitleLabel.bottomAnchor, constant: AppTheme.Spacing.s8),
-            emptySubtitleLabel.leadingAnchor.constraint(equalTo: emptyStateView.leadingAnchor),
-            emptySubtitleLabel.trailingAnchor.constraint(equalTo: emptyStateView.trailingAnchor),
+            statusSubtitleLabel.topAnchor.constraint(equalTo: statusTitleLabel.bottomAnchor, constant: AppTheme.Spacing.s8),
+            statusSubtitleLabel.leadingAnchor.constraint(equalTo: statusContainerView.leadingAnchor),
+            statusSubtitleLabel.trailingAnchor.constraint(equalTo: statusContainerView.trailingAnchor),
             
-            refreshButton.topAnchor.constraint(equalTo: emptySubtitleLabel.bottomAnchor, constant: AppTheme.Spacing.s24),
-            refreshButton.centerXAnchor.constraint(equalTo: emptyStateView.centerXAnchor),
-            refreshButton.widthAnchor.constraint(equalToConstant: 140),
-            refreshButton.heightAnchor.constraint(equalToConstant: 44),
-            refreshButton.bottomAnchor.constraint(equalTo: emptyStateView.bottomAnchor)
+            refreshInfoLabel.topAnchor.constraint(equalTo: statusSubtitleLabel.bottomAnchor, constant: AppTheme.Spacing.s12),
+            refreshInfoLabel.leadingAnchor.constraint(equalTo: statusContainerView.leadingAnchor),
+            refreshInfoLabel.trailingAnchor.constraint(equalTo: statusContainerView.trailingAnchor),
+            
+            refreshButton.topAnchor.constraint(equalTo: refreshInfoLabel.bottomAnchor, constant: AppTheme.Spacing.s20),
+            refreshButton.centerXAnchor.constraint(equalTo: statusContainerView.centerXAnchor),
+            refreshButton.widthAnchor.constraint(equalToConstant: 220),
+            refreshButton.heightAnchor.constraint(equalToConstant: 50),
+            refreshButton.bottomAnchor.constraint(equalTo: statusContainerView.bottomAnchor)
         ])
     }
     
-    private func loadCards() {
+    // MARK: - Batch Fetching
+    private func fetchBatch(isRefresh: Bool) {
+        guard !isLoadingBatch else { return }
+        
+        if isRefresh {
+            MatchStore.shared.evaluateRateLimit()
+            guard MatchStore.shared.canRefresh else {
+                updateBatchCompleteStateIfNeeded()
+                return
+            }
+        }
+        
+        isLoadingBatch = true
+        statusContainerView.isHidden = true
+        cardDeckContainer.isHidden = true
+        loadingIndicator.startAnimating()
+        
+        let studentId = MatchStore.shared.studentProfile.id
+        
+        Task { [weak self] in
+            guard let self = self else { return }
+            do {
+                let batch = try await APIService.shared.getOpportunityBatch(
+                    studentId: studentId,
+                    limit: self.batchSize,
+                    isRefresh: isRefresh
+                )
+                
+                await MainActor.run {
+                    self.isLoadingBatch = false
+                    self.loadingIndicator.stopAnimating()
+                    
+                    // Filter out already passed or applied opportunities if desired
+                    var newDeck = batch.opportunities
+                    if newDeck.isEmpty {
+                        newDeck = OpportunityCard.mockDeck
+                    }
+                    // Limit strictly to exactly 7
+                    self.batchOpportunities = Array(newDeck.prefix(self.batchSize))
+                    self.renderCards()
+                }
+            } catch {
+                await MainActor.run {
+                    self.isLoadingBatch = false
+                    self.loadingIndicator.stopAnimating()
+                    self.showErrorState(message: "Unable to load opportunities.")
+                }
+            }
+        }
+    }
+    
+    // MARK: - Card Stack Rendering
+    private func renderCards() {
         cardViews.forEach { $0.removeFromSuperview() }
         cardViews.removeAll()
         
-        opportunities = OpportunityCard.mockDeck
         updateCountLabel()
         
-        let initialCards = Array(opportunities.prefix(3))
+        guard !batchOpportunities.isEmpty else {
+            updateBatchCompleteStateIfNeeded()
+            return
+        }
+        
+        statusContainerView.isHidden = true
+        cardDeckContainer.isHidden = false
+        
+        // Show top 3 cards in stack for 3D depth effect
+        let initialCards = Array(batchOpportunities.prefix(3))
         for (index, opp) in initialCards.enumerated() {
             let card = OpportunityCardView(opportunity: opp)
             card.delegate = self
@@ -271,62 +285,128 @@ class ExploreViewController: UIViewController, OpportunityCardDelegate {
             
             cardViews.append(card)
         }
-        
-        updateEmptyState()
     }
     
     private func updateCountLabel() {
-        countLabel.text = "\(opportunities.count) opportunities"
+        let remaining = batchOpportunities.count
+        countLabel.text = "\(remaining) left in batch"
     }
     
-    private func updateEmptyState() {
-        let isEmpty = opportunities.isEmpty
-        emptyStateView.isHidden = !isEmpty
-        actionButtonsStack.isHidden = isEmpty
-        cardDeckContainer.isHidden = isEmpty
+    // MARK: - End-of-Batch & Rate Limit State
+    private func updateBatchCompleteStateIfNeeded() {
+        guard batchOpportunities.isEmpty && !isLoadingBatch else { return }
         
-        if isEmpty {
-            countLabel.text = "0 opportunities"
+        cardDeckContainer.isHidden = true
+        statusContainerView.isHidden = false
+        countLabel.text = "Batch complete"
+        
+        MatchStore.shared.evaluateRateLimit()
+        let canRefresh = MatchStore.shared.canRefresh
+        let refreshesRemaining = MatchStore.shared.refreshesRemaining
+        
+        if canRefresh {
+            statusIconLabel.text = "🎉"
+            statusTitleLabel.text = "Batch Complete"
+            statusSubtitleLabel.text = "You've reviewed all 7 opportunities in this batch. Tap below to fetch your next set."
+            refreshInfoLabel.text = "\(refreshesRemaining) refresh\(refreshesRemaining == 1 ? "" : "es") remaining this hour"
+            refreshInfoLabel.textColor = AppTheme.Colors.cyan
+            
+            refreshButton.isEnabled = true
+            refreshButton.setTitle("Refresh Opportunities", for: .normal)
+            refreshButton.backgroundColor = AppTheme.Colors.blue
+            refreshButton.alpha = 1.0
+        } else {
+            statusIconLabel.text = "⏳"
+            statusTitleLabel.text = "All Refreshes Used"
+            
+            var minutesText = "30"
+            if let nextDate = MatchStore.shared.nextRefreshAvailableAt {
+                let diffMin = max(1, Int(nextDate.timeIntervalSinceNow / 60))
+                minutesText = "\(diffMin)"
+            }
+            
+            statusSubtitleLabel.text = "You've used all 3 refreshes for now.\nMore opportunities will be available in \(minutesText) minutes."
+            refreshInfoLabel.text = "Rate limit: 3 refreshes / hour"
+            refreshInfoLabel.textColor = AppTheme.Colors.orange
+            
+            refreshButton.isEnabled = false
+            refreshButton.setTitle("Rate Limited", for: .normal)
+            refreshButton.backgroundColor = AppTheme.Colors.glass
+            refreshButton.alpha = 0.55
         }
+    }
+    
+    private func showErrorState(message: String) {
+        cardDeckContainer.isHidden = true
+        statusContainerView.isHidden = false
+        
+        statusIconLabel.text = "⚠️"
+        statusTitleLabel.text = "Something went wrong"
+        statusSubtitleLabel.text = message
+        refreshInfoLabel.text = "Check your connection and try again."
+        refreshInfoLabel.textColor = AppTheme.Colors.red
+        
+        refreshButton.isEnabled = true
+        refreshButton.setTitle("Retry", for: .normal)
+        refreshButton.backgroundColor = AppTheme.Colors.blue
+        refreshButton.alpha = 1.0
     }
     
     // MARK: - OpportunityCardDelegate
     func cardDidSwipeLeft(_ card: OpportunityCardView) {
-        handleCardSwiped(card: card, wasApplied: false)
+        handleCardSwiped(card: card, isMatch: false)
     }
     
     func cardDidSwipeRight(_ card: OpportunityCardView) {
-        handleCardSwiped(card: card, wasApplied: true)
+        handleCardSwiped(card: card, isMatch: true)
+    }
+    
+    func cardDidTap(_ card: OpportunityCardView) {
+        openOpportunityDetail(for: card.opportunity)
     }
     
     func cardDidTapInfo(_ card: OpportunityCardView) {
-        let alert = UIAlertController(
-            title: card.opportunity.title,
-            message: "\(card.opportunity.organization)\n\n\(card.opportunity.description)\n\nPerks: Competitive stipend, 1-on-1 mentorship, housing support.",
-            preferredStyle: .actionSheet
-        )
-        alert.addAction(UIAlertAction(title: "Close", style: .cancel))
-        if let popover = alert.popoverPresentationController {
-            popover.sourceView = card
-            popover.sourceRect = card.bounds
-        }
-        present(alert, animated: true)
+        openOpportunityDetail(for: card.opportunity)
     }
     
-    private func handleCardSwiped(card: OpportunityCardView, wasApplied: Bool) {
+    private func openOpportunityDetail(for opportunity: OpportunityCard) {
+        let detailView = OpportunityDetailView(opportunity: opportunity)
+        let hostingController = UIHostingController(rootView: detailView)
+        hostingController.modalPresentationStyle = .pageSheet
+        if let sheet = hostingController.sheetPresentationController {
+            sheet.detents = [.large()]
+            sheet.prefersGrabberVisible = true
+        }
+        present(hostingController, animated: true)
+    }
+    
+    private func handleCardSwiped(card: OpportunityCardView, isMatch: Bool) {
         if let index = cardViews.firstIndex(of: card) {
             cardViews.remove(at: index)
         }
         
-        if !opportunities.isEmpty {
-            let removed = opportunities.removeFirst()
-            if wasApplied {
-                onOpportunityApplied?(removed)
+        guard !batchOpportunities.isEmpty else { return }
+        let swipedOpp = batchOpportunities.removeFirst()
+        
+        let studentId = MatchStore.shared.studentProfile.id
+        
+        if isMatch {
+            // Right swipe = MATCH (Not Applied)
+            MatchStore.shared.recordSwipe(opportunity: swipedOpp, direction: .matched)
+            Task {
+                _ = try? await APIService.shared.recordSwipe(studentId: studentId, opportunityId: swipedOpp.id, direction: "match")
+            }
+        } else {
+            // Left swipe = PASS
+            MatchStore.shared.recordSwipe(opportunity: swipedOpp, direction: .passed)
+            Task {
+                _ = try? await APIService.shared.recordSwipe(studentId: studentId, opportunityId: swipedOpp.id, direction: "pass")
             }
         }
         
         updateCountLabel()
         
+        // Reposition remaining cards in stack
         for (idx, cv) in cardViews.enumerated() {
             if idx == 0 {
                 cv.isUserInteractionEnabled = true
@@ -342,16 +422,16 @@ class ExploreViewController: UIViewController, OpportunityCardDelegate {
             }
         }
         
-        if opportunities.count > cardViews.count {
+        // Add next card into container from current batch if available
+        if batchOpportunities.count > cardViews.count {
             let nextIndex = cardViews.count
-            if nextIndex < opportunities.count {
-                let opp = opportunities[nextIndex]
-                let newCard = OpportunityCardView(opportunity: opp)
+            if nextIndex < batchOpportunities.count {
+                let nextOpp = batchOpportunities[nextIndex]
+                let newCard = OpportunityCardView(opportunity: nextOpp)
                 newCard.delegate = self
                 newCard.translatesAutoresizingMaskIntoConstraints = false
                 newCard.isUserInteractionEnabled = false
                 
-                // Always insert new cards at index 0 of the container so they are at the bottom of the stack
                 cardDeckContainer.insertSubview(newCard, at: 0)
                 
                 NSLayoutConstraint.activate([
@@ -368,35 +448,16 @@ class ExploreViewController: UIViewController, OpportunityCardDelegate {
             }
         }
         
-        updateEmptyState()
+        // Check if all 7 in batch have been swiped
+        if batchOpportunities.isEmpty && cardViews.isEmpty {
+            updateBatchCompleteStateIfNeeded()
+        }
     }
     
-    // MARK: - Button Actions
-    @objc private func didTapPass() {
-        guard let topCard = cardViews.first else { return }
-        topCard.swipeLeft()
-    }
-    
-    @objc private func didTapApply() {
-        guard let topCard = cardViews.first else { return }
-        topCard.swipeRight()
-    }
-    
-    @objc private func didTapStar() {
-        guard let topCard = cardViews.first else { return }
-        let generator = UINotificationFeedbackGenerator()
-        generator.notificationOccurred(.success)
-        topCard.swipeRight()
-    }
-    
-    @objc private func didTapInfo() {
-        guard let topCard = cardViews.first else { return }
-        cardDidTapInfo(topCard)
-    }
-    
+    // MARK: - Actions
     @objc private func didTapRefresh() {
         let generator = UIImpactFeedbackGenerator(style: .medium)
         generator.impactOccurred()
-        loadCards()
+        fetchBatch(isRefresh: true)
     }
 }

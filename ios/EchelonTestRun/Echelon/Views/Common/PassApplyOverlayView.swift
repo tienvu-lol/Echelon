@@ -2,7 +2,7 @@ import UIKit
 
 enum SwipeStampType {
     case pass
-    case apply
+    case match
 }
 
 class PassApplyOverlayView: UIView {
@@ -44,10 +44,10 @@ class PassApplyOverlayView: UIView {
             stampLabel.textColor = AppTheme.Colors.red
             stampLabel.text = "PASS"
             transform = CGAffineTransform(rotationAngle: -0.22) // ~ -12.5 deg
-        case .apply:
+        case .match:
             layer.borderColor = AppTheme.Colors.green.cgColor
             stampLabel.textColor = AppTheme.Colors.green
-            stampLabel.text = "APPLY"
+            stampLabel.text = "MATCH"
             transform = CGAffineTransform(rotationAngle: 0.22) // ~ +12.5 deg
         }
     }

@@ -1,4 +1,5 @@
 import UIKit
+import Combine
 
 class MainFloatingTabBarController: UIViewController, FloatingTabBarDelegate {
     
@@ -11,11 +12,13 @@ class MainFloatingTabBarController: UIViewController, FloatingTabBarDelegate {
     
     private let containerView = UIView()
     private let floatingTabBar = FloatingTabBarView()
+    private var cancellables = Set<AnyCancellable>()
     
     override func viewDidLoad() {
         super.viewDidLoad()
         setupControllers()
         setupUI()
+        setupBindings()
         displayViewController(at: 0)
     }
     
@@ -25,13 +28,16 @@ class MainFloatingTabBarController: UIViewController, FloatingTabBarDelegate {
     
     private func setupControllers() {
         viewControllers = [exploreVC, matchesVC, profileVC]
-        
-        // Link applied swipes in explore to add match and update badge dynamically
-        exploreVC.onOpportunityApplied = { [weak self] opp in
-            guard let self = self else { return }
-            self.matchesVC.addMatch(opp)
-            self.floatingTabBar.setBadgeCount(self.matchesVC.matchCount, forTabAt: 1)
-        }
+    }
+    
+    private func setupBindings() {
+        // Observe MatchStore so Matches badge updates dynamically in real-time
+        MatchStore.shared.$notAppliedMatches
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] matches in
+                self?.floatingTabBar.setBadgeCount(matches.count, forTabAt: 1)
+            }
+            .store(in: &cancellables)
     }
     
     private func setupUI() {
@@ -47,7 +53,7 @@ class MainFloatingTabBarController: UIViewController, FloatingTabBarDelegate {
         view.addSubview(floatingTabBar)
         
         // Initialize dynamic badge from matches
-        floatingTabBar.setBadgeCount(matchesVC.matchCount, forTabAt: 1)
+        floatingTabBar.setBadgeCount(MatchStore.shared.notAppliedMatches.count, forTabAt: 1)
         
         NSLayoutConstraint.activate([
             containerView.topAnchor.constraint(equalTo: view.topAnchor),

@@ -164,6 +164,9 @@ struct SignUpView: View {
                                         phoneNumber: phoneNumber.isEmpty ? nil : phoneNumber,
                                         stayLoggedIn: stayLoggedIn
                                     )
+                                    await MainActor.run {
+                                        AppState.shared.hasCompletedOnboarding = false
+                                    }
                                 } catch {
                                     // Error is managed by authService.errorMessage
                                 }

@@ -386,6 +386,42 @@ final class AuthService: ObservableObject {
         }
     }
     
+    // MARK: - Delete Account
+    
+    func deleteAccount() async throws {
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+        
+        let uid = userUID ?? "anonymous"
+        
+        // 1. Delete on backend
+        _ = try? await APIService.shared.deleteAccount(studentId: uid)
+        
+        // 2. Delete Firebase Auth user if present
+        if let user = currentUser {
+            do {
+                try await user.delete()
+            } catch {
+                print("Firebase delete: \(error.localizedDescription)")
+            }
+        }
+        
+        // 3. Clear all local application data and stores
+        MatchStore.shared.clearAllData()
+        
+        self.currentUser = nil
+        self.demoUser = nil
+        self.isAuthenticated = false
+        self.errorMessage = nil
+        
+        UserDefaults.standard.removeObject(forKey: Self.demoEmailKey)
+        UserDefaults.standard.removeObject(forKey: Self.demoNameKey)
+        UserDefaults.standard.removeObject(forKey: Self.demoUIDKey)
+        UserDefaults.standard.removeObject(forKey: Self.demoPhoneKey)
+        UserDefaults.standard.removeObject(forKey: "hasCompletedOnboarding")
+    }
+    
     // MARK: - Password Reset
     
     func sendPasswordReset(email: String) async throws {

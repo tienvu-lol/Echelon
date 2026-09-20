@@ -3,10 +3,11 @@ import UIKit
 protocol OpportunityCardDelegate: AnyObject {
     func cardDidSwipeLeft(_ card: OpportunityCardView)
     func cardDidSwipeRight(_ card: OpportunityCardView)
+    func cardDidTap(_ card: OpportunityCardView)
     func cardDidTapInfo(_ card: OpportunityCardView)
 }
 
-class OpportunityCardView: UIView {
+class OpportunityCardView: UIView, UIGestureRecognizerDelegate {
     weak var delegate: OpportunityCardDelegate?
     
     let opportunity: OpportunityCard
@@ -14,6 +15,7 @@ class OpportunityCardView: UIView {
     // UI Elements
     private let cardContentView = UIView()
     private let backgroundImageView = UIImageView()
+    private let imagePlaceholderView = UIView()
     private let gradientOverlayView = UIView()
     private let gradientLayer = CAGradientLayer()
     
@@ -26,7 +28,7 @@ class OpportunityCardView: UIView {
     
     // Stamp Overlays
     private let passStamp = PassApplyOverlayView(type: .pass)
-    private let applyStamp = PassApplyOverlayView(type: .apply)
+    private let matchStamp = PassApplyOverlayView(type: .match)
     
     // Bottom Container
     private let bottomContainerView = UIView()
@@ -45,12 +47,13 @@ class OpportunityCardView: UIView {
     private let descriptionLabel = UILabel()
     private let footerStack = UIStackView()
     private let deadlineLabel = UILabel()
-    private let perksButton = UIButton(type: .system)
+    private let viewDetailsButton = UIButton(type: .system)
     
     // Gesture & Animation tracking
     private var panGesture: UIPanGestureRecognizer?
+    private var tapGesture: UITapGestureRecognizer?
     private var originalCenter: CGPoint = .zero
-    private let swipeThreshold: CGFloat = 110.0
+    private let swipeThreshold: CGFloat = 115.0
     private var isAnimatingSwipe = false
     
     init(opportunity: OpportunityCard) {
@@ -75,9 +78,9 @@ class OpportunityCardView: UIView {
         
         // Outer Shadow (Soft drop shadow from Foundations)
         layer.shadowColor = UIColor.black.cgColor
-        layer.shadowOpacity = 0.4
-        layer.shadowOffset = CGSize(width: 0, height: 8)
-        layer.shadowRadius = 16
+        layer.shadowOpacity = 0.45
+        layer.shadowOffset = CGSize(width: 0, height: 10)
+        layer.shadowRadius = 18
         
         // Main Container using Radii · 26 px
         cardContentView.translatesAutoresizingMaskIntoConstraints = false
@@ -88,20 +91,24 @@ class OpportunityCardView: UIView {
         cardContentView.layer.masksToBounds = true
         addSubview(cardContentView)
         
-        // Background subtle graphic / backdrop
+        // Placeholder background view
+        imagePlaceholderView.translatesAutoresizingMaskIntoConstraints = false
+        imagePlaceholderView.backgroundColor = AppTheme.Colors.glass
+        cardContentView.addSubview(imagePlaceholderView)
+        
+        // Background remote image / backdrop
         backgroundImageView.translatesAutoresizingMaskIntoConstraints = false
         backgroundImageView.contentMode = .scaleAspectFill
         backgroundImageView.clipsToBounds = true
-        backgroundImageView.image = UIImage(systemName: "building.2.crop.circle")
-        backgroundImageView.tintColor = AppTheme.Colors.glass.withAlphaComponent(0.4)
         cardContentView.addSubview(backgroundImageView)
         
         // Dark gradient to ensure high contrast
         gradientLayer.colors = [
-            AppTheme.Colors.background.withAlphaComponent(0.7).cgColor,
-            AppTheme.Colors.background.withAlphaComponent(0.95).cgColor
+            AppTheme.Colors.background.withAlphaComponent(0.25).cgColor,
+            AppTheme.Colors.background.withAlphaComponent(0.75).cgColor,
+            AppTheme.Colors.background.withAlphaComponent(0.98).cgColor
         ]
-        gradientLayer.locations = [0.0, 1.0]
+        gradientLayer.locations = [0.0, 0.45, 1.0]
         gradientOverlayView.layer.addSublayer(gradientLayer)
         gradientOverlayView.translatesAutoresizingMaskIntoConstraints = false
         gradientOverlayView.isUserInteractionEnabled = false
@@ -118,10 +125,15 @@ class OpportunityCardView: UIView {
             cardContentView.leadingAnchor.constraint(equalTo: leadingAnchor),
             cardContentView.trailingAnchor.constraint(equalTo: trailingAnchor),
             
+            imagePlaceholderView.topAnchor.constraint(equalTo: cardContentView.topAnchor),
+            imagePlaceholderView.leadingAnchor.constraint(equalTo: cardContentView.leadingAnchor),
+            imagePlaceholderView.trailingAnchor.constraint(equalTo: cardContentView.trailingAnchor),
+            imagePlaceholderView.heightAnchor.constraint(equalTo: cardContentView.heightAnchor, multiplier: 0.62),
+            
             backgroundImageView.topAnchor.constraint(equalTo: cardContentView.topAnchor),
             backgroundImageView.leadingAnchor.constraint(equalTo: cardContentView.leadingAnchor),
             backgroundImageView.trailingAnchor.constraint(equalTo: cardContentView.trailingAnchor),
-            backgroundImageView.heightAnchor.constraint(equalTo: cardContentView.heightAnchor, multiplier: 0.6),
+            backgroundImageView.heightAnchor.constraint(equalTo: cardContentView.heightAnchor, multiplier: 0.62),
             
             gradientOverlayView.topAnchor.constraint(equalTo: cardContentView.topAnchor),
             gradientOverlayView.bottomAnchor.constraint(equalTo: cardContentView.bottomAnchor),
@@ -129,10 +141,17 @@ class OpportunityCardView: UIView {
             gradientOverlayView.trailingAnchor.constraint(equalTo: cardContentView.trailingAnchor)
         ])
         
-        // Pan Gesture
+        // Pan Gesture (Horizontal Swipe)
         let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
+        pan.delegate = self
         self.panGesture = pan
         addGestureRecognizer(pan)
+        
+        // Tap Gesture (Opens Article/Detail Page, never counts as swipe or match)
+        let tap = UITapGestureRecognizer(target: self, action: #selector(handleCardTap(_:)))
+        tap.cancelsTouchesInView = false
+        self.tapGesture = tap
+        addGestureRecognizer(tap)
     }
     
     private func setupTopBar() {
@@ -201,7 +220,7 @@ class OpportunityCardView: UIView {
         typePill.translatesAutoresizingMaskIntoConstraints = false
         bottomContainerView.addSubview(typePill)
         
-        // Typography · Card title · 17 px (bold) / Title · 22 px
+        // Typography · Card title · 17 px (bold)
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         titleLabel.font = AppTheme.Typography.cardTitleBold
         titleLabel.textColor = AppTheme.Colors.textPrimary
@@ -210,7 +229,7 @@ class OpportunityCardView: UIView {
         
         infoRowStack.translatesAutoresizingMaskIntoConstraints = false
         infoRowStack.axis = .horizontal
-        infoRowStack.spacing = AppTheme.Spacing.s12
+        infoRowStack.spacing = AppTheme.Spacing.s10
         infoRowStack.alignment = .center
         bottomContainerView.addSubview(infoRowStack)
         
@@ -228,7 +247,7 @@ class OpportunityCardView: UIView {
         descriptionLabel.numberOfLines = 3
         bottomContainerView.addSubview(descriptionLabel)
         
-        // Footer (Deadline + Perks)
+        // Footer (Deadline + View Details)
         footerStack.translatesAutoresizingMaskIntoConstraints = false
         footerStack.axis = .horizontal
         footerStack.distribution = .equalSpacing
@@ -240,11 +259,11 @@ class OpportunityCardView: UIView {
         deadlineLabel.textColor = AppTheme.Colors.textSecondary
         footerStack.addArrangedSubview(deadlineLabel)
         
-        perksButton.setTitle("↓ Perks", for: .normal)
-        perksButton.titleLabel?.font = AppTheme.Typography.labelBold
-        perksButton.setTitleColor(AppTheme.Colors.textSecondary, for: .normal)
-        perksButton.addTarget(self, action: #selector(didTapInfo), for: .touchUpInside)
-        footerStack.addArrangedSubview(perksButton)
+        viewDetailsButton.setTitle("Details →", for: .normal)
+        viewDetailsButton.titleLabel?.font = AppTheme.Typography.labelBold
+        viewDetailsButton.setTitleColor(AppTheme.Colors.cyan, for: .normal)
+        viewDetailsButton.addTarget(self, action: #selector(didTapDetails), for: .touchUpInside)
+        footerStack.addArrangedSubview(viewDetailsButton)
         
         NSLayoutConstraint.activate([
             bottomContainerView.leadingAnchor.constraint(equalTo: cardContentView.leadingAnchor, constant: AppTheme.Spacing.s12),
@@ -284,16 +303,16 @@ class OpportunityCardView: UIView {
         passStamp.alpha = 0
         cardContentView.addSubview(passStamp)
         
-        applyStamp.translatesAutoresizingMaskIntoConstraints = false
-        applyStamp.alpha = 0
-        cardContentView.addSubview(applyStamp)
+        matchStamp.translatesAutoresizingMaskIntoConstraints = false
+        matchStamp.alpha = 0
+        cardContentView.addSubview(matchStamp)
         
         NSLayoutConstraint.activate([
             passStamp.topAnchor.constraint(equalTo: cardContentView.topAnchor, constant: AppTheme.Spacing.s48),
             passStamp.trailingAnchor.constraint(equalTo: cardContentView.trailingAnchor, constant: -AppTheme.Spacing.s32),
             
-            applyStamp.topAnchor.constraint(equalTo: cardContentView.topAnchor, constant: AppTheme.Spacing.s48),
-            applyStamp.leadingAnchor.constraint(equalTo: cardContentView.leadingAnchor, constant: AppTheme.Spacing.s32)
+            matchStamp.topAnchor.constraint(equalTo: cardContentView.topAnchor, constant: AppTheme.Spacing.s48),
+            matchStamp.leadingAnchor.constraint(equalTo: cardContentView.leadingAnchor, constant: AppTheme.Spacing.s32)
         ])
     }
     
@@ -301,13 +320,35 @@ class OpportunityCardView: UIView {
         orgNameLabel.text = opp.organization
         orgLocationLabel.text = opp.location ?? "Remote"
         
-        let iconName = opp.companyLogoName ?? "shield.lefthalf.filled"
-        orgIconImageView.image = UIImage(systemName: iconName)
+        // Remote Image Loading for Opportunity
+        if let imageUrl = opp.imageUrl, !imageUrl.isEmpty {
+            ImageLoader.shared.loadImage(from: imageUrl) { [weak self] image in
+                if let loadedImage = image {
+                    self?.backgroundImageView.image = loadedImage
+                } else {
+                    self?.backgroundImageView.image = UIImage(systemName: "building.2.crop.circle")
+                }
+            }
+        } else {
+            backgroundImageView.image = UIImage(systemName: "building.2.crop.circle")
+        }
+        
+        // Org Logo or Symbol
+        if let logoUrl = opp.organizationLogoUrl, !logoUrl.isEmpty {
+            ImageLoader.shared.loadImage(from: logoUrl) { [weak self] img in
+                if let img = img {
+                    self?.orgIconImageView.image = img
+                }
+            }
+        } else {
+            let iconName = opp.companyLogoName ?? "shield.lefthalf.filled"
+            orgIconImageView.image = UIImage(systemName: iconName)
+        }
         
         if let match = opp.matchPercentage {
             matchScoreView.percentage = match
         } else {
-            matchScoreView.percentage = 80
+            matchScoreView.percentage = 85
         }
         
         // Configure Type Pill dynamically
@@ -338,7 +379,7 @@ class OpportunityCardView: UIView {
         titleLabel.text = opp.title
         descriptionLabel.text = opp.description
         
-        // Info Row items (Typography · Label 11 px)
+        // Info Row items
         infoRowStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
         
         if let location = opp.location {
@@ -408,7 +449,7 @@ class OpportunityCardView: UIView {
         return stack
     }
     
-    // MARK: - Pan Gesture Handling
+    // MARK: - Pan Gesture Handling (Horizontal Swiping Only, No Swipe Down)
     @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
         guard !isAnimatingSwipe else { return }
         let translation = gesture.translation(in: superview)
@@ -421,22 +462,24 @@ class OpportunityCardView: UIView {
             let rotationStrength = min(xOffset / (bounds.width * 1.5), 1.0)
             let rotationAngle = rotationStrength * (CGFloat.pi / 10)
             
-            center = CGPoint(x: originalCenter.x + xOffset, y: originalCenter.y + translation.y * 0.4)
+            // Subtly track y movement for fluid tilt, but NEVER trigger vertical actions
+            center = CGPoint(x: originalCenter.x + xOffset, y: originalCenter.y + translation.y * 0.25)
             transform = CGAffineTransform(rotationAngle: rotationAngle)
             
-            // Stamp alpha
+            // Stamp alpha based strictly on horizontal threshold
             if xOffset > 0 {
-                applyStamp.alpha = min(xOffset / swipeThreshold, 1.0)
+                matchStamp.alpha = min(xOffset / swipeThreshold, 1.0)
                 passStamp.alpha = 0
             } else {
                 passStamp.alpha = min(-xOffset / swipeThreshold, 1.0)
-                applyStamp.alpha = 0
+                matchStamp.alpha = 0
             }
         case .ended, .cancelled:
             let velocity = gesture.velocity(in: superview)
-            if translation.x > swipeThreshold || velocity.x > 750 {
-                animateSwipe(direction: .apply)
-            } else if translation.x < -swipeThreshold || velocity.x < -750 {
+            // Strict horizontal threshold and velocity
+            if translation.x > swipeThreshold || velocity.x > 800 {
+                animateSwipe(direction: .match)
+            } else if translation.x < -swipeThreshold || velocity.x < -800 {
                 animateSwipe(direction: .pass)
             } else {
                 resetCardPosition()
@@ -448,16 +491,16 @@ class OpportunityCardView: UIView {
     
     private func resetCardPosition() {
         UIView.animate(
-            withDuration: 0.4,
+            withDuration: 0.35,
             delay: 0,
-            usingSpringWithDamping: 0.75,
-            initialSpringVelocity: 0.5,
+            usingSpringWithDamping: 0.78,
+            initialSpringVelocity: 0.4,
             options: [.curveEaseOut],
             animations: {
                 self.center = self.originalCenter
                 self.transform = .identity
                 self.passStamp.alpha = 0
-                self.applyStamp.alpha = 0
+                self.matchStamp.alpha = 0
             }
         )
     }
@@ -469,7 +512,7 @@ class OpportunityCardView: UIView {
     
     func swipeRight() {
         guard !isAnimatingSwipe else { return }
-        animateSwipe(direction: .apply)
+        animateSwipe(direction: .match)
     }
     
     private func animateSwipe(direction: SwipeStampType) {
@@ -478,25 +521,25 @@ class OpportunityCardView: UIView {
         isUserInteractionEnabled = false
         
         let screenWidth = window?.windowScene?.screen.bounds.width ?? superview?.bounds.width ?? 375
-        let translationX: CGFloat = direction == .apply ? screenWidth * 1.4 : -screenWidth * 1.4
-        let rotationAngle: CGFloat = direction == .apply ? 0.35 : -0.35
+        let translationX: CGFloat = direction == .match ? screenWidth * 1.4 : -screenWidth * 1.4
+        let rotationAngle: CGFloat = direction == .match ? 0.35 : -0.35
         
         UIView.animate(
-            withDuration: 0.35,
+            withDuration: 0.32,
             delay: 0,
             options: [.curveEaseIn],
             animations: {
-                if direction == .apply {
-                    self.applyStamp.alpha = 1.0
+                if direction == .match {
+                    self.matchStamp.alpha = 1.0
                 } else {
                     self.passStamp.alpha = 1.0
                 }
-                self.center = CGPoint(x: self.originalCenter.x + translationX, y: self.originalCenter.y + 40)
+                self.center = CGPoint(x: self.originalCenter.x + translationX, y: self.originalCenter.y + 30)
                 self.transform = CGAffineTransform(rotationAngle: rotationAngle)
             },
             completion: { _ in
                 self.removeFromSuperview()
-                if direction == .apply {
+                if direction == .match {
                     self.delegate?.cardDidSwipeRight(self)
                 } else {
                     self.delegate?.cardDidSwipeLeft(self)
@@ -505,7 +548,20 @@ class OpportunityCardView: UIView {
         )
     }
     
-    @objc private func didTapInfo() {
-        delegate?.cardDidTapInfo(self)
+    @objc private func handleCardTap(_ gesture: UITapGestureRecognizer) {
+        // Tapping a card does NOT count as a swipe or match
+        delegate?.cardDidTap(self)
+    }
+    
+    @objc private func didTapDetails() {
+        delegate?.cardDidTap(self)
+    }
+    
+    // Allow pan gesture to take precedence over tap during movement
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        if gestureRecognizer == panGesture && otherGestureRecognizer == tapGesture {
+            return false
+        }
+        return false
     }
 }

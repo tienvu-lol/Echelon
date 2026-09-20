@@ -74,7 +74,7 @@ struct AuthLandingView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         LandingFeatureRow(icon: "sparkle.magnifyingglass", title: "AI-Powered Matching", description: "Opportunities tailored to your major & skills")
                         LandingFeatureRow(icon: "hand.draw.fill", title: "Swipe Discovery", description: "Browse verified research, internships & REUs")
-                        LandingFeatureRow(icon: "bookmark.fill", title: "Track & Apply", description: "Save matches and manage your application cycle")
+                        LandingFeatureRow(icon: "bolt.fill", title: "Match & Apply", description: "Review matches and manage your application cycle")
                     }
                     .padding(18)
                     .background(
