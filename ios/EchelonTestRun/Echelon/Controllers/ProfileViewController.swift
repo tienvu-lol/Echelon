@@ -62,6 +62,7 @@ class ProfileViewController: UIViewController {
         setupStatsRow()
         setupSkillsCard()
         setupPreferencesCard()
+        setupAccountCard()
     }
     
     // MARK: - 1. Profile Header Card
@@ -95,7 +96,11 @@ class ProfileViewController: UIViewController {
         
         // Typography · Title · 22 px
         let nameLabel = UILabel()
-        nameLabel.text = userProfile.name
+        if let firebaseName = AuthService.shared.userDisplayName, !firebaseName.isEmpty {
+            nameLabel.text = firebaseName
+        } else {
+            nameLabel.text = userProfile.name
+        }
         nameLabel.font = AppTheme.Typography.title
         nameLabel.textColor = AppTheme.Colors.textPrimary
         infoStack.addArrangedSubview(nameLabel)
@@ -287,8 +292,81 @@ class ProfileViewController: UIViewController {
         ])
     }
     
+    // MARK: - 5. Account & Sign Out Card
+    private func setupAccountCard() {
+        let accountCard = UIView()
+        AppTheme.Effects.applyEchelonGlass(to: accountCard, cornerRadius: AppTheme.Radii.r22)
+        contentView.addArrangedSubview(accountCard)
+        
+        let title = UILabel()
+        title.translatesAutoresizingMaskIntoConstraints = false
+        title.text = "Account"
+        title.font = AppTheme.Typography.cardTitleBold
+        title.textColor = AppTheme.Colors.textPrimary
+        accountCard.addSubview(title)
+        
+        let emailRow = makePrefRow(
+            title: "Signed In As",
+            value: AuthService.shared.userEmail ?? "User"
+        )
+        accountCard.addSubview(emailRow)
+        
+        let stayLoggedInRow = makePrefRow(
+            title: "Stay Logged In",
+            value: AuthService.shared.stayLoggedIn ? "Enabled" : "Disabled"
+        )
+        accountCard.addSubview(stayLoggedInRow)
+        
+        let signOutButton = UIButton(type: .system)
+        signOutButton.translatesAutoresizingMaskIntoConstraints = false
+        signOutButton.setTitle("  Sign Out", for: .normal)
+        signOutButton.setTitleColor(AppTheme.Colors.red, for: .normal)
+        signOutButton.titleLabel?.font = UIFont.systemFont(ofSize: 15, weight: .semibold)
+        signOutButton.setImage(UIImage(systemName: "rectangle.portrait.and.arrow.right"), for: .normal)
+        signOutButton.tintColor = AppTheme.Colors.red
+        signOutButton.backgroundColor = AppTheme.Colors.red.withAlphaComponent(0.12)
+        signOutButton.layer.cornerRadius = AppTheme.Radii.r12
+        signOutButton.layer.borderWidth = 1
+        signOutButton.layer.borderColor = AppTheme.Colors.red.withAlphaComponent(0.3).cgColor
+        signOutButton.addTarget(self, action: #selector(didTapSignOut), for: .touchUpInside)
+        accountCard.addSubview(signOutButton)
+        
+        NSLayoutConstraint.activate([
+            title.topAnchor.constraint(equalTo: accountCard.topAnchor, constant: AppTheme.Spacing.s16),
+            title.leadingAnchor.constraint(equalTo: accountCard.leadingAnchor, constant: AppTheme.Spacing.s18),
+            
+            emailRow.topAnchor.constraint(equalTo: title.bottomAnchor, constant: AppTheme.Spacing.s16),
+            emailRow.leadingAnchor.constraint(equalTo: accountCard.leadingAnchor, constant: AppTheme.Spacing.s18),
+            emailRow.trailingAnchor.constraint(equalTo: accountCard.trailingAnchor, constant: -AppTheme.Spacing.s18),
+            
+            stayLoggedInRow.topAnchor.constraint(equalTo: emailRow.bottomAnchor, constant: AppTheme.Spacing.s12),
+            stayLoggedInRow.leadingAnchor.constraint(equalTo: accountCard.leadingAnchor, constant: AppTheme.Spacing.s18),
+            stayLoggedInRow.trailingAnchor.constraint(equalTo: accountCard.trailingAnchor, constant: -AppTheme.Spacing.s18),
+            
+            signOutButton.topAnchor.constraint(equalTo: stayLoggedInRow.bottomAnchor, constant: AppTheme.Spacing.s18),
+            signOutButton.leadingAnchor.constraint(equalTo: accountCard.leadingAnchor, constant: AppTheme.Spacing.s18),
+            signOutButton.trailingAnchor.constraint(equalTo: accountCard.trailingAnchor, constant: -AppTheme.Spacing.s18),
+            signOutButton.heightAnchor.constraint(equalToConstant: 44),
+            signOutButton.bottomAnchor.constraint(equalTo: accountCard.bottomAnchor, constant: -AppTheme.Spacing.s18)
+        ])
+    }
+    
+    @objc private func didTapSignOut() {
+        let alert = UIAlertController(
+            title: "Sign Out",
+            message: "Are you sure you want to sign out?",
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Sign Out", style: .destructive, handler: { _ in
+            AuthService.shared.signOut()
+        }))
+        present(alert, animated: true)
+    }
+    
     private func makePrefRow(title: String, value: String) -> UIView {
         let row = UIStackView()
+        row.translatesAutoresizingMaskIntoConstraints = false
         row.axis = .horizontal
         row.distribution = .equalSpacing
         row.alignment = .center

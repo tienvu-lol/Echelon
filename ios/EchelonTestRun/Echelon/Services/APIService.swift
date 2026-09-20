@@ -64,9 +64,20 @@ final class APIService {
         return try await post(endpoint: "/api/swipes", body: body)
     }
     
+    // MARK: - Auth & Session Endpoints
+    
+    func verifyAuthMe(token: String) async throws -> AuthMeResponse {
+        let headers = ["Authorization": "Bearer \(token)"]
+        return try await fetch(endpoint: "/api/auth/me", headers: headers)
+    }
+    
     // MARK: - Networking Helpers
     
-    private func fetch<T: Decodable>(endpoint: String, queryItems: [URLQueryItem]? = nil) async throws -> T {
+    private func fetch<T: Decodable>(
+        endpoint: String,
+        queryItems: [URLQueryItem]? = nil,
+        headers: [String: String]? = nil
+    ) async throws -> T {
         guard var components = URLComponents(string: baseURL + endpoint) else {
             throw APIError.invalidURL
         }
@@ -79,7 +90,13 @@ final class APIService {
             throw APIError.invalidURL
         }
         
-        let (data, response) = try await session.data(from: url)
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        headers?.forEach { key, value in
+            request.setValue(value, forHTTPHeaderField: key)
+        }
+        
+        let (data, response) = try await session.data(for: request)
         
         guard let httpRes = response as? HTTPURLResponse, (200...299).contains(httpRes.statusCode) else {
             let errorMsg = String(data: data, encoding: .utf8) ?? "Unknown Error"
@@ -93,7 +110,11 @@ final class APIService {
         }
     }
     
-    private func post<T: Decodable, U: Encodable>(endpoint: String, body: U) async throws -> T {
+    private func post<T: Decodable, U: Encodable>(
+        endpoint: String,
+        body: U,
+        headers: [String: String]? = nil
+    ) async throws -> T {
         guard let url = URL(string: baseURL + endpoint) else {
             throw APIError.invalidURL
         }
@@ -101,6 +122,9 @@ final class APIService {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        headers?.forEach { key, value in
+            request.setValue(value, forHTTPHeaderField: key)
+        }
         request.httpBody = try encoder.encode(body)
         
         let (data, response) = try await session.data(for: request)

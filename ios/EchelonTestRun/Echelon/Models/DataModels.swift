@@ -144,6 +144,12 @@ struct HealthResponse: Codable, Equatable {
     let status: String
 }
 
+struct AuthMeResponse: Codable, Equatable {
+    let status: String
+    let uid: String?
+    let email: String?
+}
+
 // MARK: - Dummy / Mock Data for Visual Fidelity
 
 extension OpportunityCard {
