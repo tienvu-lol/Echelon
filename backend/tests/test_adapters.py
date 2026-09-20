@@ -3,7 +3,7 @@
 All HTTP requests and network calls are mocked.
 """
 
-from io import BytesIO
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -13,22 +13,35 @@ from app.ingestion.web_scraper import WebScraperAdapter
 
 
 class TestSimplifyJobsAdapter:
-    SAMPLE_MARKDOWN = """
-## Summer 2027 Internships
+    SAMPLE_LISTINGS = [
+        {
+            "id": "google-123",
+            "company_name": "Google",
+            "title": "Software Engineering Intern",
+            "url": "https://google.com/apply",
+            "locations": ["Mountain View, CA"],
+            "category": "Software Engineering",
+            "degrees": ["Bachelor's"],
+            "sponsorship": "Offers Sponsorship",
+            "date_posted": 1786838400,
+            "active": True,
+            "is_visible": True,
+        },
+        {
+            "id": "microsoft-456",
+            "company_name": "Microsoft",
+            "title": "Data Science Intern",
+            "url": "https://careers.microsoft.com/apply",
+            "locations": ["Redmond, WA"],
+            "active": True,
+        },
+    ]
 
-| Company | Role | Location | Application/Link | Date Posted |
-| --- | --- | --- | --- | --- |
-| [Google](https://google.com) | Software Engineering Intern | Mountain View, CA | <a href="https://google.com/apply">Apply</a> | Aug 15 |
-| Microsoft | Data Science Intern | Redmond, WA | [Apply](https://careers.microsoft.com/apply) | Aug 16 |
-| LockedCorp | Secret Intern | Hidden | 🔒 Locked | Aug 17 |
-| BrokenCorp | Missing Apply Link | Nowhere | Not a link | Aug 18 |
-"""
-
-    def test_parses_markdown_table_successfully(self):
+    def test_parses_structured_json_successfully(self):
         adapter = SimplifyJobsAdapter()
 
         mock_response = MagicMock()
-        mock_response.read.return_value = self.SAMPLE_MARKDOWN.encode("utf-8")
+        mock_response.read.return_value = json.dumps(self.SAMPLE_LISTINGS).encode("utf-8")
         mock_response.__enter__.return_value = mock_response
 
         with patch("urllib.request.urlopen", return_value=mock_response):
@@ -41,6 +54,11 @@ class TestSimplifyJobsAdapter:
         assert google_opp.title == "Software Engineering Intern"
         assert google_opp.location == "Mountain View, CA"
         assert google_opp.apply_url == "https://google.com/apply"
+        assert google_opp.source_url == SimplifyJobsAdapter.SOURCE_URL
+        assert google_opp.interests == ["Software Engineering"]
+        assert google_opp.degree_levels == ["Bachelor's"]
+        assert google_opp.work_authorization_requirements == ["Offers Sponsorship"]
+        assert google_opp.source_age == "2026-08-16"
         assert google_opp.active is True
         assert google_opp.opportunity_type == "internship"
 
@@ -49,6 +67,40 @@ class TestSimplifyJobsAdapter:
         assert msft_opp.title == "Data Science Intern"
         assert msft_opp.location == "Redmond, WA"
         assert msft_opp.apply_url == "https://careers.microsoft.com/apply"
+
+    def test_rejects_inactive_and_invisible_listings(self):
+        inactive = {**self.SAMPLE_LISTINGS[0], "id": "inactive", "active": False}
+        invisible = {
+            **self.SAMPLE_LISTINGS[0],
+            "id": "invisible",
+            "is_visible": False,
+        }
+
+        assert self._fetch([inactive, invisible]) == []
+
+    def test_skips_malformed_listing(self):
+        missing_url = {**self.SAMPLE_LISTINGS[0], "url": ""}
+        invalid_url = {**self.SAMPLE_LISTINGS[0], "url": "not-a-url"}
+
+        assert self._fetch([None, "bad", missing_url, invalid_url]) == []
+
+    def test_uses_stable_fallback_id_when_listing_id_is_missing(self):
+        listing = {**self.SAMPLE_LISTINGS[0], "id": None}
+
+        first = self._fetch([listing])[0].id
+        second = self._fetch([listing])[0].id
+
+        assert first == second
+        assert first.startswith("simplify_")
+
+    @staticmethod
+    def _fetch(listings):
+        mock_response = MagicMock()
+        mock_response.read.return_value = json.dumps(listings).encode("utf-8")
+        mock_response.__enter__.return_value = mock_response
+
+        with patch("urllib.request.urlopen", return_value=mock_response):
+            return list(SimplifyJobsAdapter().fetch_opportunities())
 
     def test_fetch_error_handled_gracefully(self):
         adapter = SimplifyJobsAdapter()
