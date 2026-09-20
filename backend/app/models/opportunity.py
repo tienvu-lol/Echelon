@@ -1,26 +1,42 @@
+"""Opportunity domain model.
+
+Provider-independent.  No imports from Gemini, Databricks, or Firebase.
+"""
+
 from pydantic import BaseModel, Field
-from datetime import datetime, date
-from typing import Optional
-import uuid
+
 
 class Opportunity(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    """Represents a single campus opportunity (research, job, club, etc.).
+
+    Required fields are those a student needs to evaluate the opportunity.
+    Optional fields are populated when available from the data source.
+    All list fields use ``Field(default_factory=list)`` for isolation.
+    """
+
+    # --- Required ---
+    id: str
     title: str
     organization: str
     opportunity_type: str
     description: str
+    source_url: str
+
+    # --- Filterable lists ---
     skills: list[str] = Field(default_factory=list)
+    interests: list[str] = Field(default_factory=list)
+    eligibility: list[str] = Field(default_factory=list)
     majors: list[str] = Field(default_factory=list)
-    class_years: list[int] = Field(default_factory=list)
-    location: Optional[str] = None
-    paid: Optional[bool] = None
-    deadline: Optional[date] = None
-    contact_name: Optional[str] = None
-    contact_email: Optional[str] = None
-    apply_url: Optional[str] = None
-    source_url: Optional[str] = None
-    source_name: Optional[str] = None
-    search_text: Optional[str] = None
-    embedding: Optional[list[float]] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    last_seen_at: datetime = Field(default_factory=datetime.utcnow)
+    class_years: list[str] = Field(default_factory=list)
+
+    # --- Optional metadata ---
+    location: str | None = None
+    time_commitment: str | None = None
+    compensation: str | None = None
+    deadline: str | None = None
+    apply_url: str | None = None
+
+    # --- Contact (never fabricated — populated only from real data) ---
+    contact_name: str | None = None
+    contact_email: str | None = None
+

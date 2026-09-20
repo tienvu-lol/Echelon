@@ -1,69 +1,78 @@
-# AGENTS.md — Echelon
+# Project Instructions
 
-## Project
+## Product
 
-Echelon is a mobile-first campus opportunity navigator for Virginia Tech, built for VTHacks 2026.
+We are building a Virginia Tech campus opportunity navigator.
+
+Students upload a resume and enter interests.
+The backend parses their profile using Gemini.
+Opportunities are stored and retrieved through Databricks.
+The iOS frontend is written separately in SwiftUI.
+
+## Backend stack
+
+- Python
+- FastAPI
+- Pydantic
+- Gemini API
+- Databricks
+- uv for dependency management
 
 ## Architecture
 
-### Runtime Flow
+SwiftUI frontend -> FastAPI backend -> Gemini + Databricks
 
-```
-Expo Mobile App
-  → FastAPI Backend
-      → Gemini API (AI processing)
-      → Databricks (Data platform)
-```
+The frontend must never access Gemini or Databricks directly.
 
-FastAPI is the sole orchestration layer. The mobile app never contacts Gemini or Databricks directly.
+## Rules
 
-### Technology Stack
+- All secrets come from environment variables.
+- Never commit `.env`.
+- Never fabricate opportunity data, application links, recruiter names, or contact information.
+- API responses must use Pydantic models.
+- External provider logic belongs in `/services`.
+- Route files should remain thin.
+- Business logic should not live directly inside route handlers.
+- Write tests for non-trivial logic.
+- Do not edit unrelated files.
+- Read docs/API_CONTRACTS.md before changing response formats.
 
-| Layer | Technology |
-|---|---|
-| Mobile | Swift, SwiftUI, iOS 17+ |
-| Backend | Python 3.12+, FastAPI, Pydantic, uv |
-| AI | Google Gemini API via `google-genai` SDK |
-| Data | Databricks (Delta, Unity Catalog, AI Search) via `databricks-sdk` |
-| Embeddings | `gemini-embedding-2` at 768 dimensions |
+## Commands
 
-## Non-Negotiable Rules
+Install:
+`uv sync`
 
-1. **Gemini and Databricks are NOT directly coupled.** FastAPI coordinates both.
-2. **No secrets in Git.** All credentials in `.env` (gitignored). Only `.env.example` is committed.
-3. **Only the backend calls Gemini and Databricks.** The mobile app communicates only with FastAPI.
-4. **Gemini calls go through `backend/app/services/gemini.py`.** No Gemini imports elsewhere.
-5. **Databricks calls go through `backend/app/services/databricks.py`.** No Databricks imports elsewhere.
-6. **No hallucinated data.** If a field (email, URL, deadline, etc.) is not in the source, return null.
-7. **No arbitrary match percentages.** Recommendations are based on embedding similarity via AI Search.
-8. **No paid cloud resources without explicit approval.**
-9. **Validate Gemini responses with Pydantic.** Use structured output schemas, not free-form JSON parsing.
-10. **Graceful degradation.** Missing credentials or service outages must produce clear error messages, never crashes.
+Run:
+`uv run uvicorn app.main:app --reload`
 
-## Key Files
+Tests:
+`uv run pytest`
 
-| File | Purpose |
-|---|---|
-| `backend/app/services/gemini.py` | All Gemini API interactions |
-| `backend/app/services/databricks.py` | All Databricks interactions |
-| `backend/app/services/recommendations.py` | Recommendation pipeline (future) |
-| `backend/app/config.py` | Settings from environment variables |
-| `backend/app/models/` | Pydantic data models |
-| `ios/Echelon/Services/APIService.swift` | iOS → Backend API client |
+## Backend Architecture
 
-## Data Models
+Backend integrations must remain isolated behind service modules.
 
-- `StudentProfile` — Student resume/profile data
-- `Opportunity` — Campus opportunity with embedding
-- `Swipe` — Left/right swipe record
-- `SavedOpportunity` — Explicitly saved opportunity
+External providers:
+- Gemini / Google Agent Platform -> Gemini service
+- Databricks -> Databricks service
+- Firebase -> authentication service/dependency
 
-See `docs/DATA_MODEL.md` for full field specifications.
+API routes must not contain provider-specific business logic.
 
-## Development Priorities
+Do not directly couple provider services to each other.
+For example:
+- GeminiService must not instantiate DatabricksService.
+- DatabricksService must not instantiate GeminiService.
+- Firebase authentication must not contain recommendation logic.
 
-- Simplicity over abstraction
-- Working vertical slices over completeness
-- Readable code over clever code
-- Clear interfaces over flexible ones
-- Reliability over performance
+Cross-service orchestration belongs in a dedicated application/service layer.
+
+Before modifying shared configuration, API contracts, dependencies,
+models, or app initialization, inspect existing implementations and
+avoid breaking other integrations.
+
+Never rename or change an existing environment variable without
+coordinating the change.
+
+Never modify another integration's service files unless the current
+task explicitly requires it.
