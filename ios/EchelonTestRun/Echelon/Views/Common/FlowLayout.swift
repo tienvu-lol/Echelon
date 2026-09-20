@@ -8,27 +8,37 @@ public struct FlowLayout: Layout {
     }
     
     public func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let width = proposal.width ?? .infinity
+        let screenWidth = UIScreen.main.bounds.width
+        let maxWidth: CGFloat
+        if let proposedWidth = proposal.width, proposedWidth.isFinite, proposedWidth > 0 {
+            maxWidth = proposedWidth
+        } else {
+            maxWidth = screenWidth - 40
+        }
+        
         var currentX: CGFloat = 0
         var currentY: CGFloat = 0
         var lineHeight: CGFloat = 0
+        var maxRowWidth: CGFloat = 0
         
         for subview in subviews {
             let size = subview.sizeThatFits(.unspecified)
-            if currentX + size.width > width && currentX > 0 {
+            if currentX + size.width > maxWidth && currentX > 0 {
                 currentX = 0
                 currentY += lineHeight + spacing
                 lineHeight = 0
             }
-            currentX += size.width + spacing
             lineHeight = max(lineHeight, size.height)
+            currentX += size.width + spacing
+            maxRowWidth = max(maxRowWidth, currentX)
         }
-        return CGSize(width: width, height: currentY + lineHeight)
+        let height = currentY + lineHeight
+        return CGSize(width: maxWidth, height: height)
     }
     
     public func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        var currentX: CGFloat = bounds.minX
-        var currentY: CGFloat = bounds.minY
+        var currentX = bounds.minX
+        var currentY = bounds.minY
         var lineHeight: CGFloat = 0
         
         for subview in subviews {
@@ -38,9 +48,9 @@ public struct FlowLayout: Layout {
                 currentY += lineHeight + spacing
                 lineHeight = 0
             }
-            subview.place(at: CGPoint(x: currentX, y: currentY), proposal: .unspecified)
-            currentX += size.width + spacing
+            subview.place(at: CGPoint(x: currentX, y: currentY), proposal: ProposedViewSize(size))
             lineHeight = max(lineHeight, size.height)
+            currentX += size.width + spacing
         }
     }
 }

@@ -31,7 +31,7 @@ public struct OpportunityDetailView: View {
                         heroSection
                         
                         // 2. Main Article Content
-                        VStack(alignment: .leading, spacing: 22) {
+                        VStack(alignment: .leading, spacing: 20) {
                             // Quick Specs Grid
                             specsGrid
                             
@@ -63,10 +63,12 @@ public struct OpportunityDetailView: View {
                             // 3. AI Match & Chatbot Section
                             chatbotSection
                         }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 20)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 18)
                         .padding(.bottom, 60)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .frame(maxWidth: .infinity)
                 }
                 .onChange(of: messages.count) { _ in
                     withAnimation {
@@ -75,85 +77,80 @@ public struct OpportunityDetailView: View {
                 }
             }
             
-            // Top Bar Floating Controls
-            VStack {
-                HStack {
-                    Button(action: {
-                        dismiss()
-                    }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundColor(.white)
-                            .frame(width: 38, height: 38)
-                            .background(Color.black.opacity(0.65))
-                            .clipShape(Circle())
-                            .overlay(Circle().stroke(Color.white.opacity(0.2), lineWidth: 1))
-                    }
-                    
-                    Spacer()
-                    
-                    // Apply Action Pill
-                    if isApplied {
-                        HStack(spacing: 6) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(AppTheme.SwiftUIColors.green)
-                            Text("Applied")
-                                .font(.system(size: 13, weight: .bold))
-                                .foregroundColor(AppTheme.SwiftUIColors.green)
-                        }
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(AppTheme.SwiftUIColors.green.opacity(0.18))
-                        .clipShape(Capsule())
-                        .overlay(Capsule().stroke(AppTheme.SwiftUIColors.green.opacity(0.4), lineWidth: 1))
-                    } else {
-                        Button(action: applyAction) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "arrow.up.right.circle.fill")
-                                Text("Apply Now")
-                                    .font(.system(size: 13, weight: .bold))
-                            }
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(
-                                LinearGradient(
-                                    colors: [AppTheme.SwiftUIColors.blue, AppTheme.SwiftUIColors.cyan],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-                            .clipShape(Capsule())
-                            .shadow(color: AppTheme.SwiftUIColors.blue.opacity(0.5), radius: 8, x: 0, y: 3)
-                        }
-                    }
+        }
+        .overlay(alignment: .top) {
+            // Top Bar Floating Controls - Only takes necessary space, allows full scroll underneath
+            HStack {
+                Button(action: {
+                    dismiss()
+                }) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(width: 38, height: 38)
+                        .background(Color.black.opacity(0.65))
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(Color.white.opacity(0.2), lineWidth: 1))
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 16)
                 
                 Spacer()
-            }
-            
-            // Toast Notification
-            if showApplySuccessToast {
-                VStack {
-                    Spacer()
-                    HStack(spacing: 10) {
-                        Image(systemName: "checkmark.seal.fill")
+                
+                // Apply Action Pill
+                if isApplied {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.circle.fill")
                             .foregroundColor(AppTheme.SwiftUIColors.green)
-                        Text("Application recorded! Moved to Applied.")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.white)
+                        Text("Applied")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(AppTheme.SwiftUIColors.green)
                     }
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 12)
-                    .background(Color(hex: "#161D27").opacity(0.95))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(AppTheme.SwiftUIColors.green.opacity(0.18))
                     .clipShape(Capsule())
-                    .overlay(Capsule().stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
-                    .shadow(color: .black.opacity(0.4), radius: 12, x: 0, y: 4)
-                    .padding(.bottom, 24)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .overlay(Capsule().stroke(AppTheme.SwiftUIColors.green.opacity(0.4), lineWidth: 1))
+                } else {
+                    Button(action: applyAction) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "arrow.up.right.circle.fill")
+                            Text("Apply Now")
+                                .font(.system(size: 13, weight: .bold))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(
+                            LinearGradient(
+                                colors: [AppTheme.SwiftUIColors.blue, AppTheme.SwiftUIColors.cyan],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .clipShape(Capsule())
+                        .shadow(color: AppTheme.SwiftUIColors.blue.opacity(0.5), radius: 8, x: 0, y: 3)
+                    }
                 }
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
+        }
+        .overlay(alignment: .bottom) {
+            if showApplySuccessToast {
+                HStack(spacing: 10) {
+                    Image(systemName: "checkmark.seal.fill")
+                        .foregroundColor(AppTheme.SwiftUIColors.green)
+                    Text("Application recorded! Moved to Applied.")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+                .padding(.horizontal, 18)
+                .padding(.vertical, 12)
+                .background(Color(hex: "#161D27").opacity(0.95))
+                .clipShape(Capsule())
+                .overlay(Capsule().stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
+                .shadow(color: .black.opacity(0.4), radius: 12, x: 0, y: 4)
+                .padding(.bottom, 24)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .preferredColorScheme(.dark)
@@ -171,7 +168,8 @@ public struct OpportunityDetailView: View {
                 fallbackSystemName: "building.2.crop.circle",
                 contentMode: .fill
             )
-            .frame(height: 320)
+            .frame(maxWidth: .infinity)
+            .frame(height: 290)
             .clipped()
             
             // Gradient Overlay for Readability
@@ -229,9 +227,10 @@ public struct OpportunityDetailView: View {
                 }
                 
                 Text(opportunity.title)
-                    .font(.system(size: 26, weight: .bold))
+                    .font(.system(size: 24, weight: .bold))
                     .foregroundColor(AppTheme.SwiftUIColors.textPrimary)
                     .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
                 
                 HStack(spacing: 10) {
                     if let logoUrl = opportunity.organizationLogoUrl, !logoUrl.isEmpty {
@@ -247,17 +246,21 @@ public struct OpportunityDetailView: View {
                     Text(opportunity.organization)
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(AppTheme.SwiftUIColors.textPrimary)
+                        .lineLimit(1)
                 }
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 16)
             .padding(.bottom, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(maxWidth: .infinity)
+        .clipped()
     }
     
     // MARK: - Specs Grid
     @ViewBuilder
     private var specsGrid: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
             if let location = opportunity.location {
                 specTile(icon: "mappin.and.ellipse", title: "Location", value: location)
             }
@@ -274,29 +277,32 @@ public struct OpportunityDetailView: View {
                 specTile(icon: "hourglass.bottomhalf.filled", title: "Deadline", value: deadline)
             }
         }
+        .frame(maxWidth: .infinity)
     }
     
     private func specTile(icon: String, title: String, value: String) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             Image(systemName: icon)
-                .font(.system(size: 16))
+                .font(.system(size: 14))
                 .foregroundColor(AppTheme.SwiftUIColors.cyan)
-                .frame(width: 28, height: 28)
+                .frame(width: 26, height: 26)
                 .background(AppTheme.SwiftUIColors.cyan.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .clipShape(RoundedRectangle(cornerRadius: 7))
             
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(AppTheme.SwiftUIColors.textSecondary)
                 Text(value)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(AppTheme.SwiftUIColors.textPrimary)
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
             }
-            Spacer()
+            Spacer(minLength: 0)
         }
-        .padding(12)
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(AppTheme.SwiftUIColors.glass)
         .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radii.r16))
         .overlay(RoundedRectangle(cornerRadius: AppTheme.Radii.r16).stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
@@ -309,10 +315,12 @@ public struct OpportunityDetailView: View {
                 .font(.system(size: 18, weight: .bold))
                 .foregroundColor(AppTheme.SwiftUIColors.textPrimary)
             
-            Text(opportunity.fullDescription ?? opportunity.description)
+            let desc = (opportunity.fullDescription?.isEmpty == false ? opportunity.fullDescription! : opportunity.description)
+            Text(desc.isEmpty ? "No description available." : desc)
                 .font(.system(size: 14))
                 .foregroundColor(AppTheme.SwiftUIColors.textSecondary)
                 .lineSpacing(5)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -343,6 +351,7 @@ public struct OpportunityDetailView: View {
                             .font(.system(size: 13.5))
                             .foregroundColor(AppTheme.SwiftUIColors.textSecondary)
                             .lineSpacing(3)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }
@@ -464,7 +473,8 @@ public struct OpportunityDetailView: View {
             
             chatInputBar
         }
-        .padding(18)
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(AppTheme.SwiftUIColors.glass)
         .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radii.r22))
         .overlay(RoundedRectangle(cornerRadius: AppTheme.Radii.r22).stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
@@ -526,10 +536,13 @@ public struct OpportunityDetailView: View {
                 Text(explanation)
                     .font(.system(size: 12.5))
                     .foregroundColor(AppTheme.SwiftUIColors.textSecondary)
+                    .lineSpacing(3)
+                    .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 4)
             }
         }
         .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(hex: "#111722"))
         .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radii.r16))
         .overlay(RoundedRectangle(cornerRadius: AppTheme.Radii.r16).stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
@@ -549,6 +562,7 @@ public struct OpportunityDetailView: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
     
     private func promptChip(title: String) -> some View {
@@ -574,6 +588,7 @@ public struct OpportunityDetailView: View {
                 }
             }
             .padding(.vertical, 6)
+            .frame(maxWidth: .infinity)
         }
     }
     
@@ -643,6 +658,7 @@ public struct OpportunityDetailView: View {
             }
             .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSending)
         }
+        .frame(maxWidth: .infinity)
         .id("chatBottomAnchor")
     }
     
@@ -693,7 +709,6 @@ public struct OpportunityDetailView: View {
     }
     
     private func applyAction() {
-        // Open URL if available
         if let applyUrlStr = opportunity.applyUrl, let url = URL(string: applyUrlStr) {
             UIApplication.shared.open(url)
         }
@@ -806,5 +821,6 @@ public struct ChatBubbleView: View {
                 Spacer()
             }
         }
+        .frame(maxWidth: .infinity)
     }
 }

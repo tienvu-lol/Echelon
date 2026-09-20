@@ -389,6 +389,10 @@ public struct OpportunityCard: Codable, Identifiable, Equatable, Hashable {
         case organizationLogoUrl = "organization_logo_url"
         case companyLogoName = "company_logo_name"
         case accentHex = "accent_hex"
+        case remoteStatus = "remote_status"
+        case sourceUrl = "source_url"
+        case timeCommitment = "time_commitment"
+        case eligibility
     }
 
     public init(
@@ -457,17 +461,17 @@ public struct OpportunityCard: Codable, Identifiable, Equatable, Hashable {
         self.fullDescription = try container.decodeIfPresent(String.self, forKey: .fullDescription)
         self.skills = try container.decodeIfPresent([String].self, forKey: .skills) ?? []
         self.preferredSkills = try container.decodeIfPresent([String].self, forKey: .preferredSkills)
-        self.qualifications = try container.decodeIfPresent([String].self, forKey: .qualifications)
+        self.qualifications = (try? container.decodeIfPresent([String].self, forKey: .qualifications)) ?? (try? container.decodeIfPresent([String].self, forKey: .eligibility))
         self.responsibilities = try container.decodeIfPresent([String].self, forKey: .responsibilities)
         self.coursework = try container.decodeIfPresent([String].self, forKey: .coursework)
         self.location = try container.decodeIfPresent(String.self, forKey: .location)
-        self.workMode = try container.decodeIfPresent(String.self, forKey: .workMode)
+        self.workMode = (try? container.decodeIfPresent(String.self, forKey: .workMode)) ?? (try? container.decodeIfPresent(String.self, forKey: .remoteStatus))
         self.paid = try container.decodeIfPresent(Bool.self, forKey: .paid)
         self.deadline = try container.decodeIfPresent(String.self, forKey: .deadline)
-        self.applyUrl = try container.decodeIfPresent(String.self, forKey: .applyUrl)
+        self.applyUrl = (try? container.decodeIfPresent(String.self, forKey: .applyUrl)) ?? (try? container.decodeIfPresent(String.self, forKey: .sourceUrl))
         self.explanation = try container.decodeIfPresent(String.self, forKey: .explanation)
         self.compensation = try container.decodeIfPresent(String.self, forKey: .compensation)
-        self.duration = try container.decodeIfPresent(String.self, forKey: .duration)
+        self.duration = (try? container.decodeIfPresent(String.self, forKey: .duration)) ?? (try? container.decodeIfPresent(String.self, forKey: .timeCommitment))
         self.startDate = try container.decodeIfPresent(String.self, forKey: .startDate)
         self.matchPercentage = try container.decodeIfPresent(Int.self, forKey: .matchPercentage)
         self.matchAnalysis = try container.decodeIfPresent(MatchAnalysis.self, forKey: .matchAnalysis)
@@ -475,6 +479,36 @@ public struct OpportunityCard: Codable, Identifiable, Equatable, Hashable {
         self.organizationLogoUrl = try container.decodeIfPresent(String.self, forKey: .organizationLogoUrl)
         self.companyLogoName = try container.decodeIfPresent(String.self, forKey: .companyLogoName)
         self.accentHex = try container.decodeIfPresent(String.self, forKey: .accentHex)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(title, forKey: .title)
+        try container.encode(organization, forKey: .organization)
+        try container.encode(opportunityType, forKey: .opportunityType)
+        try container.encode(description, forKey: .description)
+        try container.encodeIfPresent(fullDescription, forKey: .fullDescription)
+        try container.encode(skills, forKey: .skills)
+        try container.encodeIfPresent(preferredSkills, forKey: .preferredSkills)
+        try container.encodeIfPresent(qualifications, forKey: .qualifications)
+        try container.encodeIfPresent(responsibilities, forKey: .responsibilities)
+        try container.encodeIfPresent(coursework, forKey: .coursework)
+        try container.encodeIfPresent(location, forKey: .location)
+        try container.encodeIfPresent(workMode, forKey: .workMode)
+        try container.encodeIfPresent(paid, forKey: .paid)
+        try container.encodeIfPresent(deadline, forKey: .deadline)
+        try container.encodeIfPresent(applyUrl, forKey: .applyUrl)
+        try container.encodeIfPresent(explanation, forKey: .explanation)
+        try container.encodeIfPresent(compensation, forKey: .compensation)
+        try container.encodeIfPresent(duration, forKey: .duration)
+        try container.encodeIfPresent(startDate, forKey: .startDate)
+        try container.encodeIfPresent(matchPercentage, forKey: .matchPercentage)
+        try container.encodeIfPresent(matchAnalysis, forKey: .matchAnalysis)
+        try container.encodeIfPresent(imageUrl, forKey: .imageUrl)
+        try container.encodeIfPresent(organizationLogoUrl, forKey: .organizationLogoUrl)
+        try container.encodeIfPresent(companyLogoName, forKey: .companyLogoName)
+        try container.encodeIfPresent(accentHex, forKey: .accentHex)
     }
 }
 
@@ -690,6 +724,16 @@ public struct SwipeResponse: Codable, Identifiable, Equatable {
         case studentId = "student_id"
         case opportunityId = "opportunity_id"
         case createdAt = "created_at"
+    }
+}
+
+public struct ApplyResponse: Codable, Equatable {
+    public let success: Bool?
+    public let message: String?
+
+    public init(success: Bool? = true, message: String? = nil) {
+        self.success = success
+        self.message = message
     }
 }
 

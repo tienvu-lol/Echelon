@@ -25,9 +25,11 @@ public final class MatchStore: ObservableObject {
     private let refreshTimestampsKey = "echelon_refresh_timestamps"
     
     private init() {
+        let currentEmail = AuthService.shared.userEmail ?? "alex.chen@vt.edu"
+        let currentName = AuthService.shared.userDisplayName ?? "Alex Chen"
         self.studentProfile = StudentProfile(
-            name: "Alex Chen",
-            email: "alex.chen@vt.edu",
+            name: currentName,
+            email: currentEmail,
             phoneNumber: "+1 (540) 555-0199",
             university: "Virginia Tech",
             major: "Computer Science",
@@ -38,14 +40,30 @@ public final class MatchStore: ObservableObject {
             skills: ["Python", "Swift", "C++", "PyTorch", "Docker", "AWS", "SQL", "Git"],
             coursework: ["Data Structures", "Algorithms", "Operating Systems", "Cloud Computing", "Machine Learning"],
             experience: ["Autonomy Software Intern @ YC Startup", "Undergraduate ML Researcher @ VT AI Lab"],
-            interests: ["Internship", "REU", "Fellowship"],
-            fields: ["AI / Machine Learning", "Distributed Systems", "Robotics"],
+            interests: ["Internship", "Research"],
+            fields: ["Software Engineering", "AI/ML"],
             workModePreferences: ["Hybrid", "In-Person", "Remote"],
-            locationPreferences: ["San Francisco, CA", "Seattle, WA", "Remote"],
+            locationPreferences: ["San Francisco, CA", "New York, NY", "Remote"],
             compensationPreference: "$45/hr+",
             bio: "Passionate about systems engineering and applied ML. Previously built autonomy software at a YC startup. Seeking research or engineering roles in AI infrastructure.",
             profilePictureUrl: nil,
-            resume: Resume(fileName: "Alex_Chen_Resume_2027.pdf")
+            resume: Resume(
+                fileName: "Alex_Chen_Resume_2027.pdf",
+                parsedData: ParsedResumeData(
+                    name: "Alex Chen",
+                    email: "alex.chen@vt.edu",
+                    phoneNumber: "+1 (540) 555-0199",
+                    university: "Virginia Tech",
+                    major: "Computer Science",
+                    minor: "Mathematics",
+                    degree: "Bachelor of Science",
+                    graduationYear: 2027,
+                    gpa: 3.92,
+                    skills: ["Python", "Swift", "C++", "PyTorch", "Docker", "AWS", "SQL", "Git"],
+                    coursework: ["Data Structures", "Algorithms", "Operating Systems", "Cloud Computing", "Machine Learning"],
+                    experience: ["Autonomy Software Intern @ YC Startup", "Undergraduate ML Researcher @ VT AI Lab"]
+                )
+            )
         )
         
         loadPersistedState()
@@ -84,20 +102,20 @@ public final class MatchStore: ObservableObject {
             match.appliedAt = Date()
             appliedMatches.insert(match, at: 0)
             saveState()
-        } else if let index = appliedMatches.firstIndex(where: { $0.opportunity.id == id }) {
+        } else if let _ = appliedMatches.firstIndex(where: { $0.opportunity.id == id }) {
             // Already applied
             return
         } else if let opp = OpportunityCard.mockDeck.first(where: { $0.id == id }) {
-            let match = MatchedOpportunity(
-                id: UUID().uuidString,
-                opportunity: opp,
-                applicationStatus: .applied,
-                matchedAt: Date(),
-                appliedAt: Date()
-            )
+            let match = MatchedOpportunity(id: UUID().uuidString, opportunity: opp, applicationStatus: .applied, appliedAt: Date())
             appliedMatches.insert(match, at: 0)
             saveState()
         }
+    }
+    
+    public func removeMatch(opportunityId: String) {
+        notAppliedMatches.removeAll { $0.opportunity.id == opportunityId }
+        appliedMatches.removeAll { $0.opportunity.id == opportunityId }
+        saveState()
     }
     
     public func applicationStatus(for opportunityId: String) -> ApplicationStatus {
@@ -172,6 +190,14 @@ public final class MatchStore: ObservableObject {
         }
     }
     
+    public func syncProfileWithBackend() {
+        Task {
+            if let profile = try? await APIService.shared.fetchCurrentProfile() {
+                self.updateProfile(profile)
+            }
+        }
+    }
+    
     public func clearAllData() {
         notAppliedMatches.removeAll()
         appliedMatches.removeAll()
@@ -190,7 +216,7 @@ public final class MatchStore: ObservableObject {
     
     // MARK: - Persistence
     
-    private func saveState() {
+    public func saveState() {
         if let encodedNotApplied = try? JSONEncoder().encode(notAppliedMatches.map { $0.opportunity }) {
             UserDefaults.standard.set(encodedNotApplied, forKey: notAppliedKey)
         }
@@ -209,26 +235,48 @@ public final class MatchStore: ObservableObject {
         }
         
         if let notAppliedData = UserDefaults.standard.data(forKey: notAppliedKey),
-           let opps = try? decoder.decode([OpportunityCard].self, from: notAppliedData) {
+           let opps = try? decoder.decode([OpportunityCard].self, from: notAppliedData),
+           !opps.isEmpty {
             self.notAppliedMatches = opps.map {
                 MatchedOpportunity(id: UUID().uuidString, opportunity: $0, applicationStatus: .notApplied)
             }
         } else {
-            // Preload 2 mock matches for rich initial visual state
+            let deck = OpportunityCard.mockDeck
             self.notAppliedMatches = [
-                MatchedOpportunity(id: "m-1", opportunity: OpportunityCard.mockDeck[4], applicationStatus: .notApplied),
-                MatchedOpportunity(id: "m-2", opportunity: OpportunityCard.mockDeck[0], applicationStatus: .notApplied)
+                MatchedOpportunity(
+                    id: "match-1",
+                    opportunity: deck.indices.contains(4) ? deck[4] : deck[0],
+                    applicationStatus: .notApplied
+                ),
+                MatchedOpportunity(
+                    id: "match-2",
+                    opportunity: deck[0],
+                    applicationStatus: .notApplied
+                )
             ]
         }
         
         if let appliedData = UserDefaults.standard.data(forKey: appliedKey),
-           let opps = try? decoder.decode([OpportunityCard].self, from: appliedData) {
+           let opps = try? decoder.decode([OpportunityCard].self, from: appliedData),
+           !opps.isEmpty {
             self.appliedMatches = opps.map {
                 MatchedOpportunity(id: UUID().uuidString, opportunity: $0, applicationStatus: .applied, appliedAt: Date())
             }
         } else {
+            let deck = OpportunityCard.mockDeck
             self.appliedMatches = [
-                MatchedOpportunity(id: "m-3", opportunity: OpportunityCard.mockDeck[6], applicationStatus: .applied, appliedAt: Date().addingTimeInterval(-86400))
+                MatchedOpportunity(
+                    id: "match-3",
+                    opportunity: deck.indices.contains(6) ? deck[6] : deck[1],
+                    applicationStatus: .applied,
+                    appliedAt: Date().addingTimeInterval(-3600)
+                ),
+                MatchedOpportunity(
+                    id: "match-4",
+                    opportunity: deck.indices.contains(5) ? deck[5] : deck[2],
+                    applicationStatus: .applied,
+                    appliedAt: Date().addingTimeInterval(-86400)
+                )
             ]
         }
         

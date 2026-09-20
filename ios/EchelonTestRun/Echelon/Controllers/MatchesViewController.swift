@@ -122,6 +122,8 @@ class MatchesViewController: UIViewController, UITableViewDataSource, UITableVie
         tableView.backgroundColor = .clear
         tableView.separatorStyle = .none
         tableView.showsVerticalScrollIndicator = false
+        tableView.alwaysBounceVertical = true
+        tableView.delaysContentTouches = false
         tableView.contentInset = UIEdgeInsets(top: AppTheme.Spacing.s4, left: 0, bottom: AppTheme.Spacing.s20, right: 0)
         tableView.dataSource = self
         tableView.delegate = self
@@ -240,8 +242,45 @@ class MatchesViewController: UIViewController, UITableViewDataSource, UITableVie
     // MARK: - UITableViewDelegate (Opens Same Opportunity Detail Page)
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
+        guard indexPath.row < currentList.count else { return }
         let item = currentList[indexPath.row]
         openOpportunityDetail(for: item.opportunity)
+    }
+    
+    // MARK: - Trailing Swipe Action: Remove Match
+    func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
+        guard indexPath.row < currentList.count else { return nil }
+        let item = currentList[indexPath.row]
+        
+        let removeAction = UIContextualAction(style: .destructive, title: "Remove") { [weak self] _, _, completionHandler in
+            guard let self = self else {
+                completionHandler(false)
+                return
+            }
+            let alert = UIAlertController(
+                title: "Remove Match?",
+                message: "Are you sure you don't want to pursue \"\(item.opportunity.title)\"?",
+                preferredStyle: .alert
+            )
+            alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in
+                completionHandler(false)
+            })
+            alert.addAction(UIAlertAction(title: "Remove", style: .destructive) { [weak self] _ in
+                guard let self = self else { return }
+                MatchStore.shared.removeMatch(opportunityId: item.opportunity.id)
+                self.updateSegmentTitles()
+                self.tableView.reloadData()
+                self.updateEmptyState()
+                completionHandler(true)
+            })
+            self.present(alert, animated: true)
+        }
+        removeAction.image = UIImage(systemName: "trash.fill")
+        removeAction.backgroundColor = AppTheme.Colors.red
+        
+        let configuration = UISwipeActionsConfiguration(actions: [removeAction])
+        configuration.performsFirstActionWithFullSwipe = false
+        return configuration
     }
     
     private func openOpportunityDetail(for opportunity: OpportunityCard) {

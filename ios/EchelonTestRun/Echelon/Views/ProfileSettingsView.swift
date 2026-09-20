@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import PhotosUI
 
 public struct ProfileSettingsView: View {
     @ObservedObject private var matchStore = MatchStore.shared
@@ -14,6 +15,11 @@ public struct ProfileSettingsView: View {
     @State private var gpa: String = ""
     @State private var compensation: String = ""
     @State private var bio: String = ""
+    
+    // Profile Picture Add / Remove
+    @State private var selectedPhotoItem: PhotosPickerItem? = nil
+    @State private var avatarImage: UIImage? = nil
+    @State private var profilePictureUrl: String? = nil
     
     // Arrays
     @State private var skills: [String] = []
@@ -34,7 +40,8 @@ public struct ProfileSettingsView: View {
     @State private var resumeFileName: String = ""
     @State private var isParsingResume: Bool = false
     
-    // Delete Account Confirmation Alert
+    // Alerts & Confirmations
+    @State private var showSignOutAlert: Bool = false
     @State private var showDeleteConfirmation: Bool = false
     @State private var isDeletingAccount: Bool = false
     @State private var errorMessage: String? = nil
@@ -68,7 +75,7 @@ public struct ProfileSettingsView: View {
                         // Resume Card
                         resumeCard
                         
-                        // Destructive Zone: Delete Account
+                        // Destructive Zone: Sign Out & Delete Account
                         destructiveCard
                     }
                     .padding(.horizontal, 18)
@@ -76,24 +83,23 @@ public struct ProfileSettingsView: View {
                     .padding(.bottom, 60)
                 }
                 
+            }
+            .overlay(alignment: .bottom) {
                 if showSavedToast {
-                    VStack {
-                        Spacer()
-                        HStack(spacing: 8) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(AppTheme.SwiftUIColors.green)
-                            Text("Profile changes saved!")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(.white)
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                        .background(Color(hex: "#1A2230"))
-                        .clipShape(Capsule())
-                        .overlay(Capsule().stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
-                        .padding(.bottom, 24)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                    HStack(spacing: 8) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(AppTheme.SwiftUIColors.green)
+                        Text("Profile changes saved!")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.white)
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(Color(hex: "#1A2230"))
+                    .clipShape(Capsule())
+                    .overlay(Capsule().stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
+                    .padding(.bottom, 24)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
             .navigationTitle("Edit Profile & Settings")
@@ -119,6 +125,15 @@ public struct ProfileSettingsView: View {
                     handleResumePicked(url: url)
                 }
             }
+            .alert("Sign Out", isPresented: $showSignOutAlert) {
+                Button("Cancel", role: .cancel) {}
+                Button("Sign Out", role: .destructive) {
+                    AuthService.shared.signOut()
+                    dismiss()
+                }
+            } message: {
+                Text("Are you sure you want to sign out?")
+            }
             .alert("Delete Account?", isPresented: $showDeleteConfirmation) {
                 Button("Cancel", role: .cancel) {}
                 Button("Delete Permanently", role: .destructive) {
@@ -134,28 +149,100 @@ public struct ProfileSettingsView: View {
         .preferredColorScheme(.dark)
     }
     
-    // MARK: - Avatar Section
+    // MARK: - Avatar Section (Add / Remove Profile Picture)
     private var avatarSection: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 14) {
             ZStack {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [AppTheme.SwiftUIColors.blue, AppTheme.SwiftUIColors.cyan],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
+                if let img = avatarImage {
+                    Image(uiImage: img)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 88, height: 88)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(AppTheme.SwiftUIColors.cyan, lineWidth: 2))
+                } else if let picUrl = profilePictureUrl, !picUrl.isEmpty {
+                    RemoteImageView(urlString: picUrl, fallbackSystemName: "person.crop.circle.fill", contentMode: .fill)
+                        .frame(width: 88, height: 88)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(AppTheme.SwiftUIColors.cyan, lineWidth: 2))
+                } else {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [AppTheme.SwiftUIColors.blue, AppTheme.SwiftUIColors.cyan],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
                         )
-                    )
-                    .frame(width: 84, height: 84)
-                    .shadow(color: AppTheme.SwiftUIColors.blue.opacity(0.4), radius: 10, x: 0, y: 4)
-                
-                let initial = String(name.prefix(1)).uppercased()
-                Text(initial.isEmpty ? "S" : initial)
-                    .font(.system(size: 36, weight: .bold))
-                    .foregroundColor(.white)
+                        .frame(width: 88, height: 88)
+                        .shadow(color: AppTheme.SwiftUIColors.blue.opacity(0.4), radius: 10, x: 0, y: 4)
+                    
+                    let initial = String((name.isEmpty ? (AuthService.shared.userDisplayName ?? "S") : name).prefix(1)).uppercased()
+                    Text(initial.isEmpty ? "S" : initial)
+                        .font(.system(size: 36, weight: .bold))
+                        .foregroundColor(.white)
+                }
             }
             
-            Text("Logged in as \(AuthService.shared.userEmail ?? matchStore.studentProfile.email ?? "Alex Chen")")
+            // Photo Actions: Add / Change & Remove Buttons
+            HStack(spacing: 12) {
+                PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "camera.fill")
+                            .font(.system(size: 12))
+                        Text(profilePictureUrl != nil || avatarImage != nil ? "Change Photo" : "Add Photo")
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 7)
+                    .background(AppTheme.SwiftUIColors.blue)
+                    .clipShape(Capsule())
+                }
+                .onChange(of: selectedPhotoItem) { newItem in
+                    Task {
+                        if let data = try? await newItem?.loadTransferable(type: Data.self),
+                           let uiImage = UIImage(data: data) {
+                            await MainActor.run {
+                                self.avatarImage = uiImage
+                                if let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+                                    let fileURL = docs.appendingPathComponent("avatar_\(UUID().uuidString).jpg")
+                                    if (try? data.write(to: fileURL)) != nil {
+                                        self.profilePictureUrl = fileURL.absoluteString
+                                        self.matchStore.studentProfile.profilePictureUrl = fileURL.absoluteString
+                                        self.matchStore.saveState()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                if profilePictureUrl != nil || avatarImage != nil {
+                    Button(role: .destructive, action: {
+                        self.avatarImage = nil
+                        self.profilePictureUrl = nil
+                        self.selectedPhotoItem = nil
+                        self.matchStore.studentProfile.profilePictureUrl = nil
+                        self.matchStore.saveState()
+                    }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "trash")
+                                .font(.system(size: 12))
+                            Text("Remove Photo")
+                                .font(.system(size: 13, weight: .semibold))
+                        }
+                        .foregroundColor(AppTheme.SwiftUIColors.red)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
+                        .background(AppTheme.SwiftUIColors.red.opacity(0.12))
+                        .clipShape(Capsule())
+                        .overlay(Capsule().stroke(AppTheme.SwiftUIColors.red.opacity(0.3), lineWidth: 1))
+                    }
+                }
+            }
+            
+            Text("Logged in as \(AuthService.shared.userEmail ?? matchStore.studentProfile.email ?? "Student")")
                 .font(.system(size: 12))
                 .foregroundColor(AppTheme.SwiftUIColors.textSecondary)
         }
@@ -176,19 +263,22 @@ public struct ProfileSettingsView: View {
             
             HStack(spacing: 12) {
                 formRow(title: "Grad Year", text: $graduationYear, placeholder: "2027")
-                formRow(title: "GPA", text: $gpa, placeholder: "3.90")
+                formRow(title: "GPA", text: $gpa, placeholder: "3.80")
             }
             
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Bio / Summary")
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Bio & Elevator Pitch")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(AppTheme.SwiftUIColors.textSecondary)
+                
                 TextEditor(text: $bio)
-                    .frame(height: 70)
+                    .frame(height: 80)
                     .padding(8)
+                    .scrollContentBackground(.hidden)
                     .background(Color(hex: "#0E131E"))
-                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radii.r12))
-                    .overlay(RoundedRectangle(cornerRadius: AppTheme.Radii.r12).stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
+                    .font(.system(size: 14))
             }
         }
         .padding(16)
@@ -200,13 +290,13 @@ public struct ProfileSettingsView: View {
     // MARK: - Skills & Coursework Card
     private var skillsAndCourseworkCard: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Skills & Coursework")
+            Text("Skills & Technical Depth")
                 .font(.system(size: 16, weight: .bold))
                 .foregroundColor(AppTheme.SwiftUIColors.textPrimary)
             
-            // Skills
+            // Skills Flow
             VStack(alignment: .leading, spacing: 8) {
-                Text("Skills (Tap × to remove)")
+                Text("Skills")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(AppTheme.SwiftUIColors.textSecondary)
                 
@@ -219,27 +309,24 @@ public struct ProfileSettingsView: View {
                 }
                 
                 HStack {
-                    TextField("Add skill (e.g. PyTorch)...", text: $newSkillInput)
+                    TextField("Add skill (e.g. Rust, PyTorch)", text: $newSkillInput)
                         .font(.system(size: 13))
                         .padding(8)
                         .background(Color(hex: "#0E131E"))
                         .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
+                        .onSubmit { addSkill() }
                     
-                    Button("Add") {
-                        let trimmed = newSkillInput.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if !trimmed.isEmpty && !skills.contains(trimmed) {
-                            skills.append(trimmed)
-                            newSkillInput = ""
-                        }
-                    }
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(AppTheme.SwiftUIColors.cyan)
+                    Button("Add") { addSkill() }
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(AppTheme.SwiftUIColors.cyan)
+                        .disabled(newSkillInput.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
             
             Divider().background(AppTheme.SwiftUIColors.border)
             
-            // Coursework
+            // Coursework Flow
             VStack(alignment: .leading, spacing: 8) {
                 Text("Relevant Coursework")
                     .font(.system(size: 12, weight: .medium))
@@ -254,21 +341,18 @@ public struct ProfileSettingsView: View {
                 }
                 
                 HStack {
-                    TextField("Add course (e.g. Operating Systems)...", text: $newCourseInput)
+                    TextField("Add coursework (e.g. CS 3114)", text: $newCourseInput)
                         .font(.system(size: 13))
                         .padding(8)
                         .background(Color(hex: "#0E131E"))
                         .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
+                        .onSubmit { addCourse() }
                     
-                    Button("Add") {
-                        let trimmed = newCourseInput.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if !trimmed.isEmpty && !coursework.contains(trimmed) {
-                            coursework.append(trimmed)
-                            newCourseInput = ""
-                        }
-                    }
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(AppTheme.SwiftUIColors.blue)
+                    Button("Add") { addCourse() }
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(AppTheme.SwiftUIColors.blue)
+                        .disabled(newCourseInput.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
         }
@@ -278,18 +362,32 @@ public struct ProfileSettingsView: View {
         .overlay(RoundedRectangle(cornerRadius: AppTheme.Radii.r20).stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
     }
     
+    private func addSkill() {
+        let trimmed = newSkillInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !skills.contains(trimmed) else { return }
+        skills.append(trimmed)
+        newSkillInput = ""
+    }
+    
+    private func addCourse() {
+        let trimmed = newCourseInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !coursework.contains(trimmed) else { return }
+        coursework.append(trimmed)
+        newCourseInput = ""
+    }
+    
     // MARK: - Experience Card
     private var experienceCard: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Experience & Projects")
+            Text("Past Experience & Projects")
                 .font(.system(size: 16, weight: .bold))
                 .foregroundColor(AppTheme.SwiftUIColors.textPrimary)
             
-            VStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 8) {
                 ForEach(experience, id: \.self) { exp in
                     HStack {
                         Image(systemName: "briefcase.fill")
-                            .font(.system(size: 12))
+                            .font(.system(size: 11))
                             .foregroundColor(AppTheme.SwiftUIColors.cyan)
                         Text(exp)
                             .font(.system(size: 13))
@@ -298,32 +396,30 @@ public struct ProfileSettingsView: View {
                         Button(action: {
                             experience.removeAll { $0 == exp }
                         }) {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(AppTheme.SwiftUIColors.textTertiary)
+                            Image(systemName: "trash")
+                                .font(.system(size: 11))
+                                .foregroundColor(AppTheme.SwiftUIColors.red)
                         }
                     }
-                    .padding(10)
+                    .padding(8)
                     .background(Color(hex: "#0E131E"))
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
             }
             
             HStack {
-                TextField("Add experience (e.g. SWE Intern @ Meta)...", text: $newExperienceInput)
+                TextField("Add experience (e.g. ML Intern @ XYZ)", text: $newExperienceInput)
                     .font(.system(size: 13))
                     .padding(8)
                     .background(Color(hex: "#0E131E"))
                     .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
+                    .onSubmit { addExperience() }
                 
-                Button("Add") {
-                    let trimmed = newExperienceInput.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !trimmed.isEmpty && !experience.contains(trimmed) {
-                        experience.append(trimmed)
-                        newExperienceInput = ""
-                    }
-                }
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(AppTheme.SwiftUIColors.cyan)
+                Button("Add") { addExperience() }
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(AppTheme.SwiftUIColors.cyan)
+                    .disabled(newExperienceInput.trimmingCharacters(in: .whitespaces).isEmpty)
             }
         }
         .padding(16)
@@ -332,16 +428,25 @@ public struct ProfileSettingsView: View {
         .overlay(RoundedRectangle(cornerRadius: AppTheme.Radii.r20).stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
     }
     
-    // MARK: - Preferences Card
+    private func addExperience() {
+        let trimmed = newExperienceInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !experience.contains(trimmed) else { return }
+        experience.append(trimmed)
+        newExperienceInput = ""
+    }
+    
+    // MARK: - Preferences & Work Modes Card
     private var preferencesCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Work & Location Preferences")
                 .font(.system(size: 16, weight: .bold))
                 .foregroundColor(AppTheme.SwiftUIColors.textPrimary)
             
-            // Work Modes
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Work Modes")
+            formRow(title: "Target Compensation", text: $compensation, placeholder: "e.g. $40/hr+ or Competitive")
+            
+            // Work Mode Multi-Select
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Preferred Work Modes")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(AppTheme.SwiftUIColors.textSecondary)
                 
@@ -355,23 +460,24 @@ public struct ProfileSettingsView: View {
                                 selectedWorkModes.insert(mode)
                             }
                         }) {
-                            Text(mode)
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundColor(isSelected ? .white : AppTheme.SwiftUIColors.textSecondary)
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 7)
-                                .background(isSelected ? AppTheme.SwiftUIColors.blue : AppTheme.SwiftUIColors.pillBackground)
-                                .clipShape(Capsule())
-                                .overlay(Capsule().stroke(isSelected ? AppTheme.SwiftUIColors.blue : AppTheme.SwiftUIColors.border, lineWidth: 1))
+                            HStack(spacing: 6) {
+                                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                                    .font(.system(size: 11))
+                                Text(mode)
+                                    .font(.system(size: 13, weight: .semibold))
+                            }
+                            .foregroundColor(isSelected ? .white : AppTheme.SwiftUIColors.textSecondary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(isSelected ? AppTheme.SwiftUIColors.blue : AppTheme.SwiftUIColors.pillBackground)
+                            .clipShape(Capsule())
+                            .overlay(Capsule().stroke(isSelected ? AppTheme.SwiftUIColors.blue : AppTheme.SwiftUIColors.border, lineWidth: 1))
                         }
                     }
                 }
             }
             
-            // Desired Compensation
-            formRow(title: "Target Compensation", text: $compensation, placeholder: "e.g. $45/hr+ or $9,000/mo")
-            
-            // Preferred Locations
+            // Locations
             VStack(alignment: .leading, spacing: 8) {
                 Text("Preferred Locations")
                     .font(.system(size: 12, weight: .medium))
@@ -379,28 +485,25 @@ public struct ProfileSettingsView: View {
                 
                 FlowLayout(spacing: 8) {
                     ForEach(locationPreferences, id: \.self) { loc in
-                        removableTag(text: loc, color: AppTheme.SwiftUIColors.purple) {
+                        removableTag(text: loc, color: AppTheme.SwiftUIColors.yellow) {
                             locationPreferences.removeAll { $0 == loc }
                         }
                     }
                 }
                 
                 HStack {
-                    TextField("Add location (e.g. San Francisco, CA)...", text: $newLocationInput)
+                    TextField("Add location (e.g. Blacksburg, VA)", text: $newLocationInput)
                         .font(.system(size: 13))
                         .padding(8)
                         .background(Color(hex: "#0E131E"))
                         .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
+                        .onSubmit { addLocation() }
                     
-                    Button("Add") {
-                        let trimmed = newLocationInput.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if !trimmed.isEmpty && !locationPreferences.contains(trimmed) {
-                            locationPreferences.append(trimmed)
-                            newLocationInput = ""
-                        }
-                    }
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(AppTheme.SwiftUIColors.purple)
+                    Button("Add") { addLocation() }
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(AppTheme.SwiftUIColors.yellow)
+                        .disabled(newLocationInput.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
         }
@@ -408,56 +511,78 @@ public struct ProfileSettingsView: View {
         .background(AppTheme.SwiftUIColors.glass)
         .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radii.r20))
         .overlay(RoundedRectangle(cornerRadius: AppTheme.Radii.r20).stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
+    }
+    
+    private func addLocation() {
+        let trimmed = newLocationInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !locationPreferences.contains(trimmed) else { return }
+        locationPreferences.append(trimmed)
+        newLocationInput = ""
     }
     
     // MARK: - Resume Card
     private var resumeCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Resume & Documents")
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Resume Document")
                 .font(.system(size: 16, weight: .bold))
                 .foregroundColor(AppTheme.SwiftUIColors.textPrimary)
             
             HStack(spacing: 12) {
-                Image(systemName: "doc.text.fill")
+                Image(systemName: "doc.fill")
                     .font(.system(size: 24))
                     .foregroundColor(AppTheme.SwiftUIColors.cyan)
                 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(resumeFileName.isEmpty ? "No Resume Attached" : resumeFileName)
+                    Text(resumeFileName.isEmpty ? "No resume attached" : resumeFileName)
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(AppTheme.SwiftUIColors.textPrimary)
+                        .foregroundColor(resumeFileName.isEmpty ? AppTheme.SwiftUIColors.textSecondary : AppTheme.SwiftUIColors.textPrimary)
+                        .lineLimit(1)
                     
-                    Text(resumeFileName.isEmpty ? "Upload a PDF to parse and auto-match" : "Attached to your applicant profile")
+                    Text(isParsingResume ? "AI parsing in progress..." : "Upload a PDF resume to auto-fill profile details")
                         .font(.system(size: 11))
-                        .foregroundColor(AppTheme.SwiftUIColors.textSecondary)
+                        .foregroundColor(AppTheme.SwiftUIColors.textTertiary)
                 }
-                
                 Spacer()
-                
-                Button(action: {
-                    showDocumentPicker = true
-                }) {
-                    Text(resumeFileName.isEmpty ? "Upload" : "Replace")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(AppTheme.SwiftUIColors.cyan)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(AppTheme.SwiftUIColors.cyan.opacity(0.15))
-                        .clipShape(Capsule())
-                }
             }
             .padding(12)
             .background(Color(hex: "#0E131E"))
-            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radii.r12))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
             
-            if isParsingResume {
-                HStack(spacing: 8) {
-                    ProgressView()
-                    Text("Parsing resume via backend...")
-                        .font(.system(size: 12))
-                        .foregroundColor(AppTheme.SwiftUIColors.textSecondary)
+            HStack(spacing: 10) {
+                Button(action: {
+                    showDocumentPicker = true
+                }) {
+                    HStack {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                        Text(resumeFileName.isEmpty ? "Upload PDF" : "Replace Resume")
+                    }
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 38)
+                    .background(AppTheme.SwiftUIColors.blue)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
-                .padding(.top, 4)
+                
+                if !resumeFileName.isEmpty {
+                    Button(role: .destructive, action: {
+                        resumeFileName = ""
+                        matchStore.studentProfile.resume = nil
+                        matchStore.saveState()
+                    }) {
+                        HStack {
+                            Image(systemName: "trash")
+                            Text("Remove")
+                        }
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(AppTheme.SwiftUIColors.red)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 38)
+                        .background(AppTheme.SwiftUIColors.red.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppTheme.SwiftUIColors.red.opacity(0.3), lineWidth: 1))
+                    }
+                }
             }
         }
         .padding(16)
@@ -466,12 +591,31 @@ public struct ProfileSettingsView: View {
         .overlay(RoundedRectangle(cornerRadius: AppTheme.Radii.r20).stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
     }
     
-    // MARK: - Destructive Card (Delete Account)
+    // MARK: - Destructive Actions (Sign Out & Delete Account)
     private var destructiveCard: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Danger Zone")
+            Text("Account Actions")
                 .font(.system(size: 15, weight: .bold))
-                .foregroundColor(AppTheme.SwiftUIColors.red)
+                .foregroundColor(AppTheme.SwiftUIColors.textPrimary)
+            
+            // Sign Out Button
+            Button(action: {
+                showSignOutAlert = true
+            }) {
+                HStack {
+                    Image(systemName: "rectangle.portrait.and.arrow.right")
+                    Text("Sign Out")
+                        .font(.system(size: 14, weight: .semibold))
+                }
+                .foregroundColor(AppTheme.SwiftUIColors.yellow)
+                .frame(maxWidth: .infinity)
+                .frame(height: 44)
+                .background(AppTheme.SwiftUIColors.yellow.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radii.r12))
+                .overlay(RoundedRectangle(cornerRadius: AppTheme.Radii.r12).stroke(AppTheme.SwiftUIColors.yellow.opacity(0.3), lineWidth: 1))
+            }
+            
+            Divider().background(AppTheme.SwiftUIColors.border).padding(.vertical, 4)
             
             Text("Permanently delete your account and all associated applications, matches, and profile data.")
                 .font(.system(size: 12))
@@ -492,7 +636,7 @@ public struct ProfileSettingsView: View {
                 }
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
-                .frame(height: 46)
+                .frame(height: 44)
                 .background(AppTheme.SwiftUIColors.red)
                 .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radii.r12))
             }
@@ -501,7 +645,7 @@ public struct ProfileSettingsView: View {
         .padding(16)
         .background(AppTheme.SwiftUIColors.glass)
         .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radii.r20))
-        .overlay(RoundedRectangle(cornerRadius: AppTheme.Radii.r20).stroke(AppTheme.SwiftUIColors.red.opacity(0.4), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: AppTheme.Radii.r20).stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
     }
     
     // MARK: - Helpers
@@ -540,39 +684,47 @@ public struct ProfileSettingsView: View {
     // MARK: - Profile Load & Save
     private func loadProfileData() {
         let p = matchStore.studentProfile
-        name = p.name ?? AuthService.shared.userDisplayName ?? "Alex Chen"
+        name = p.name ?? AuthService.shared.userDisplayName ?? ""
         university = p.university ?? "Virginia Tech"
         major = p.major
         minor = p.minor ?? ""
-        graduationYear = "\(p.graduationYear)"
-        gpa = p.gpa != nil ? String(format: "%.2f", p.gpa!) : "3.90"
+        graduationYear = p.graduationYear > 0 ? "\(p.graduationYear)" : "2027"
+        gpa = p.gpa != nil ? String(format: "%.2f", p.gpa!) : "3.80"
         bio = p.bio ?? ""
-        compensation = p.compensationPreference ?? "$45/hr+"
+        compensation = p.compensationPreference ?? ""
         skills = p.skills
         coursework = p.coursework
         experience = p.experience
         locationPreferences = p.locationPreferences
         selectedWorkModes = Set(p.workModePreferences)
-        resumeFileName = p.resume?.fileName ?? "Alex_Chen_Resume_2027.pdf"
+        resumeFileName = p.resume?.fileName ?? ""
+        profilePictureUrl = p.profilePictureUrl
+        
+        if let picUrl = p.profilePictureUrl, let url = URL(string: picUrl), url.isFileURL {
+            avatarImage = UIImage(contentsOfFile: url.path)
+        }
     }
     
     private func saveProfile() {
         var updated = matchStore.studentProfile
-        updated.name = name
+        updated.name = name.isEmpty ? nil : name
         updated.university = university
         updated.major = major
         updated.minor = minor.isEmpty ? nil : minor
         updated.graduationYear = Int(graduationYear) ?? 2027
         updated.gpa = Double(gpa)
-        updated.bio = bio
-        updated.compensationPreference = compensation
+        updated.bio = bio.isEmpty ? nil : bio
+        updated.compensationPreference = compensation.isEmpty ? nil : compensation
         updated.skills = skills
         updated.coursework = coursework
         updated.experience = experience
         updated.locationPreferences = locationPreferences
         updated.workModePreferences = Array(selectedWorkModes)
+        updated.profilePictureUrl = profilePictureUrl
         if !resumeFileName.isEmpty {
             updated.resume = Resume(fileName: resumeFileName)
+        } else {
+            updated.resume = nil
         }
         
         matchStore.updateProfile(updated)

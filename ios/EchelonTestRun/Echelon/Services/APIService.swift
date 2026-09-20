@@ -90,11 +90,10 @@ public final class APIService {
                 nextRefreshAvailableAt: MatchStore.shared.nextRefreshAvailableAt
             )
         } catch {
-            // Fallback for offline/local demonstration using real Databricks data model deck
-            let all = OpportunityCard.mockDeck
-            let deck = Array(all.prefix(limit))
+            // Offline / local mock fallback
+            let fallbackDeck = Array(OpportunityCard.mockDeck.prefix(limit))
             return OpportunityBatch(
-                opportunities: deck,
+                opportunities: fallbackDeck,
                 canRefresh: MatchStore.shared.canRefresh,
                 refreshesRemaining: MatchStore.shared.refreshesRemaining,
                 nextRefreshAvailableAt: MatchStore.shared.nextRefreshAvailableAt
@@ -125,24 +124,13 @@ public final class APIService {
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         
-        do {
-            let (data, response) = try await session.data(for: request)
-            try validateResponse(response)
-            return try JSONDecoder().decode(SwipeResponse.self, from: data)
-        } catch {
-            // Optimistic fallback response
-            return SwipeResponse(
-                id: UUID().uuidString,
-                studentId: studentId,
-                opportunityId: opportunityId,
-                direction: direction,
-                createdAt: ISO8601DateFormatter().string(from: Date())
-            )
-        }
+        let (data, response) = try await session.data(for: request)
+        try validateResponse(response)
+        return try JSONDecoder().decode(SwipeResponse.self, from: data)
     }
     
-    // MARK: - Apply Opportunity
-    public func applyOpportunity(studentId: String, opportunityId: String) async throws {
+    // MARK: - Opportunity Application Submission
+    public func applyOpportunity(studentId: String, opportunityId: String) async throws -> ApplyResponse {
         guard let url = URL(string: "\(baseURL)/api/opportunities/\(opportunityId)/apply") else {
             throw APIError.invalidURL
         }
@@ -153,53 +141,27 @@ public final class APIService {
         await applyAuthHeader(to: &request)
         
         let body: [String: Any] = [
-            "student_id": studentId,
-            "opportunity_id": opportunityId,
-            "applied_at": ISO8601DateFormatter().string(from: Date())
+            "student_id": studentId
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         
-        do {
-            let (_, response) = try await session.data(for: request)
-            try validateResponse(response)
-        } catch {
-            // Local fallback succeed
-        }
+        let (data, response) = try await session.data(for: request)
+        try validateResponse(response)
+        return try JSONDecoder().decode(ApplyResponse.self, from: data)
     }
     
-    // MARK: - AI Opportunity Chatbot & Conversational Agent
+    // MARK: - AI Match Chatbot
     public func sendChatMessage(
         opportunityId: String,
         studentId: String,
         message: String,
         context: OpportunityChatContext
     ) async throws -> String {
-        // First try backend agent conversational endpoint: /api/agent/chat
-        if let agentUrl = URL(string: "\(baseURL)/api/agent/chat") {
-            var agentRequest = URLRequest(url: agentUrl)
-            agentRequest.httpMethod = "POST"
-            agentRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            agentRequest.timeoutInterval = 10.0
-            await applyAuthHeader(to: &agentRequest)
-            
-            let agentPayload: [String: Any] = ["message": message]
-            if let agentData = try? JSONSerialization.data(withJSONObject: agentPayload) {
-                agentRequest.httpBody = agentData
-                if let (data, resp) = try? await session.data(for: agentRequest),
-                   let http = resp as? HTTPURLResponse, (200...299).contains(http.statusCode),
-                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                   let reply = json["reply"] as? String, !reply.isEmpty {
-                    return reply
-                }
-            }
-        }
-        
-        // Second try opportunity-scoped chat route
-        if let oppUrl = URL(string: "\(baseURL)/api/opportunities/\(opportunityId)/chat") {
-            var request = URLRequest(url: oppUrl)
+        if let chatURL = URL(string: "\(baseURL)/api/chat") {
+            var request = URLRequest(url: chatURL)
             request.httpMethod = "POST"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.timeoutInterval = 8.0
+            request.timeoutInterval = 10.0
             await applyAuthHeader(to: &request)
             
             let payload: [String: Any] = [
@@ -220,7 +182,7 @@ public final class APIService {
             }
         }
         
-        // Intelligent local fallback with real context
+        // Contextual AI fallback
         try await Task.sleep(nanoseconds: 600_000_000)
         return generateLocalChatResponse(message: message, context: context)
     }
@@ -281,8 +243,8 @@ public final class APIService {
             try validateResponse(response)
             return try JSONDecoder().decode(ParsedResumeData.self, from: data)
         } catch {
-            // Intelligent local parser fallback
-            try await Task.sleep(nanoseconds: 1_200_000_000)
+            // Intelligent local fallback when backend is unavailable
+            try? await Task.sleep(nanoseconds: 600_000_000)
             return ParsedResumeData(
                 name: "Alex Chen",
                 email: "alex.chen@vt.edu",
@@ -298,6 +260,20 @@ public final class APIService {
                 experience: ["Autonomy Software Intern @ YC Startup", "Undergraduate ML Researcher @ VT AI Lab"]
             )
         }
+    }
+    
+    // MARK: - Fetch Current Profile from Backend / Databricks
+    public func fetchCurrentProfile() async throws -> StudentProfile {
+        guard let url = URL(string: "\(baseURL)/api/profile/me") else {
+            throw APIError.invalidURL
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        await applyAuthHeader(to: &request)
+        
+        let (data, response) = try await session.data(for: request)
+        try validateResponse(response)
+        return try JSONDecoder().decode(StudentProfile.self, from: data)
     }
     
     // MARK: - Student Profile Updates & Account Deletion
@@ -322,12 +298,8 @@ public final class APIService {
         ]
         request.httpBody = try? JSONSerialization.data(withJSONObject: payload)
         
-        do {
-            let (_, response) = try await session.data(for: request)
-            try validateResponse(response)
-        } catch {
-            // Local success
-        }
+        let (_, response) = try await session.data(for: request)
+        try validateResponse(response)
     }
     
     public func deleteAccount(studentId: String) async throws {
@@ -338,12 +310,8 @@ public final class APIService {
         request.httpMethod = "DELETE"
         await applyAuthHeader(to: &request)
         
-        do {
-            let (_, response) = try await session.data(for: request)
-            try validateResponse(response)
-        } catch {
-            // Local deletion success
-        }
+        let (_, response) = try await session.data(for: request)
+        try validateResponse(response)
     }
     
     // MARK: - Auth Verification

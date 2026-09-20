@@ -1,9 +1,12 @@
 import UIKit
 import SwiftUI
+import UniformTypeIdentifiers
+import Combine
 
 class ProfileViewController: UIViewController {
     
     private let scrollView = UIScrollView()
+    private let scrollContainer = UIView()
     private let contentView = UIStackView()
     
     private let headerStack = UIStackView()
@@ -17,7 +20,6 @@ class ProfileViewController: UIViewController {
     private let skillsCard = UIView()
     private let preferencesCard = UIView()
     private let resumeCard = UIView()
-    private let accountCard = UIView()
     
     // Header UI elements to update dynamically
     private let avatarView = UIView()
@@ -33,12 +35,25 @@ class ProfileViewController: UIViewController {
     private let skillsFlow = TagFlowView()
     private let preferencesStack = UIStackView()
     private let resumeFileNameLabel = UILabel()
-    private let userEmailLabel = UILabel()
+    private let uploadResumeButton = UIButton(type: .system)
+    private let removeResumeButton = UIButton(type: .system)
+    private var cancellables = Set<AnyCancellable>()
     
     override func viewDidLoad() {
         super.viewDidLoad()
         setupUI()
+        setupSubscriptions()
         reloadProfileData()
+        MatchStore.shared.syncProfileWithBackend()
+    }
+
+    private func setupSubscriptions() {
+        MatchStore.shared.$studentProfile
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.reloadProfileData()
+            }
+            .store(in: &cancellables)
     }
     
     override func viewWillAppear(_ animated: Bool) {
@@ -54,14 +69,20 @@ class ProfileViewController: UIViewController {
         // Scroll View
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.showsVerticalScrollIndicator = false
+        scrollView.alwaysBounceVertical = true
+        scrollView.delaysContentTouches = false
+        scrollView.canCancelContentTouches = true
         scrollView.contentInset = UIEdgeInsets(top: AppTheme.Spacing.s12, left: 0, bottom: 120, right: 0)
         view.addSubview(scrollView)
+        
+        scrollContainer.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.addSubview(scrollContainer)
         
         contentView.translatesAutoresizingMaskIntoConstraints = false
         contentView.axis = .vertical
         contentView.spacing = AppTheme.Spacing.s16
         contentView.alignment = .fill
-        scrollView.addSubview(contentView)
+        scrollContainer.addSubview(contentView)
         
         NSLayoutConstraint.activate([
             headerStack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: AppTheme.Spacing.s8),
@@ -74,11 +95,16 @@ class ProfileViewController: UIViewController {
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
             
-            contentView.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor),
-            contentView.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor),
-            contentView.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor, constant: AppTheme.Spacing.s18),
-            contentView.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor, constant: -AppTheme.Spacing.s18),
-            contentView.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor, constant: -36)
+            scrollContainer.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor),
+            scrollContainer.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor),
+            scrollContainer.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor),
+            scrollContainer.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor),
+            scrollContainer.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor),
+            
+            contentView.topAnchor.constraint(equalTo: scrollContainer.topAnchor),
+            contentView.bottomAnchor.constraint(equalTo: scrollContainer.bottomAnchor, constant: -AppTheme.Spacing.s24),
+            contentView.leadingAnchor.constraint(equalTo: scrollContainer.leadingAnchor, constant: AppTheme.Spacing.s18),
+            contentView.trailingAnchor.constraint(equalTo: scrollContainer.trailingAnchor, constant: -AppTheme.Spacing.s18)
         ])
         
         setupProfileHeaderCard()
@@ -87,7 +113,6 @@ class ProfileViewController: UIViewController {
         setupSkillsCard()
         setupPreferencesCard()
         setupResumeCard()
-        setupAccountCard()
     }
     
     private func setupTopHeader() {
@@ -146,6 +171,7 @@ class ProfileViewController: UIViewController {
         
         headlineLabel.font = AppTheme.Typography.body
         headlineLabel.textColor = AppTheme.Colors.textSecondary
+        headlineLabel.numberOfLines = 2
         infoStack.addArrangedSubview(headlineLabel)
         
         // Star Rating + GPA Row
@@ -177,6 +203,9 @@ class ProfileViewController: UIViewController {
         bioLabel.numberOfLines = 0
         profileHeaderCard.addSubview(bioLabel)
         
+        let bioTopPreferred = bioLabel.topAnchor.constraint(equalTo: infoStack.bottomAnchor, constant: AppTheme.Spacing.s14)
+        bioTopPreferred.priority = .defaultHigh
+        
         NSLayoutConstraint.activate([
             avatarView.topAnchor.constraint(equalTo: profileHeaderCard.topAnchor, constant: AppTheme.Spacing.s18),
             avatarView.leadingAnchor.constraint(equalTo: profileHeaderCard.leadingAnchor, constant: AppTheme.Spacing.s18),
@@ -195,7 +224,9 @@ class ProfileViewController: UIViewController {
             infoStack.leadingAnchor.constraint(equalTo: avatarView.trailingAnchor, constant: AppTheme.Spacing.s14),
             infoStack.trailingAnchor.constraint(equalTo: profileHeaderCard.trailingAnchor, constant: -AppTheme.Spacing.s18),
             
-            bioLabel.topAnchor.constraint(equalTo: avatarView.bottomAnchor, constant: AppTheme.Spacing.s14),
+            bioTopPreferred,
+            bioLabel.topAnchor.constraint(greaterThanOrEqualTo: infoStack.bottomAnchor, constant: AppTheme.Spacing.s12),
+            bioLabel.topAnchor.constraint(greaterThanOrEqualTo: avatarView.bottomAnchor, constant: AppTheme.Spacing.s12),
             bioLabel.leadingAnchor.constraint(equalTo: profileHeaderCard.leadingAnchor, constant: AppTheme.Spacing.s18),
             bioLabel.trailingAnchor.constraint(equalTo: profileHeaderCard.trailingAnchor, constant: -AppTheme.Spacing.s18),
             bioLabel.bottomAnchor.constraint(equalTo: profileHeaderCard.bottomAnchor, constant: -AppTheme.Spacing.s18)
@@ -334,7 +365,7 @@ class ProfileViewController: UIViewController {
         ])
     }
     
-    // MARK: - 6. Resume Card
+    // MARK: - 6. Resume Card (Direct Add & Remove)
     private func setupResumeCard() {
         AppTheme.Effects.applyEchelonGlass(to: resumeCard, cornerRadius: AppTheme.Radii.r22)
         contentView.addArrangedSubview(resumeCard)
@@ -346,12 +377,18 @@ class ProfileViewController: UIViewController {
         title.textColor = AppTheme.Colors.textPrimary
         resumeCard.addSubview(title)
         
-        let row = UIStackView()
-        row.translatesAutoresizingMaskIntoConstraints = false
-        row.axis = .horizontal
-        row.alignment = .center
-        row.spacing = 10
-        resumeCard.addSubview(row)
+        let mainStack = UIStackView()
+        mainStack.translatesAutoresizingMaskIntoConstraints = false
+        mainStack.axis = .vertical
+        mainStack.spacing = AppTheme.Spacing.s12
+        resumeCard.addSubview(mainStack)
+        
+        // Status row (Icon + Name)
+        let statusRow = UIStackView()
+        statusRow.axis = .horizontal
+        statusRow.alignment = .center
+        statusRow.spacing = 10
+        mainStack.addArrangedSubview(statusRow)
         
         let icon = UIImageView(image: UIImage(systemName: "doc.text.fill"))
         icon.tintColor = AppTheme.Colors.cyan
@@ -359,94 +396,63 @@ class ProfileViewController: UIViewController {
         icon.translatesAutoresizingMaskIntoConstraints = false
         icon.widthAnchor.constraint(equalToConstant: 24).isActive = true
         icon.heightAnchor.constraint(equalToConstant: 24).isActive = true
-        row.addArrangedSubview(icon)
+        statusRow.addArrangedSubview(icon)
         
         resumeFileNameLabel.font = AppTheme.Typography.bodySemibold
         resumeFileNameLabel.textColor = AppTheme.Colors.textPrimary
-        row.addArrangedSubview(resumeFileNameLabel)
+        resumeFileNameLabel.numberOfLines = 1
+        resumeFileNameLabel.lineBreakMode = .byTruncatingMiddle
+        statusRow.addArrangedSubview(resumeFileNameLabel)
         
-        let editResumeBtn = UIButton(type: .system)
-        editResumeBtn.setTitle("Edit", for: .normal)
-        editResumeBtn.titleLabel?.font = AppTheme.Typography.labelBold
-        editResumeBtn.setTitleColor(AppTheme.Colors.cyan, for: .normal)
-        editResumeBtn.addTarget(self, action: #selector(didTapSettings), for: .touchUpInside)
-        row.addArrangedSubview(editResumeBtn)
+        // Action buttons row (Add/Replace & Remove)
+        let actionsRow = UIStackView()
+        actionsRow.axis = .horizontal
+        actionsRow.alignment = .center
+        actionsRow.spacing = 10
+        actionsRow.distribution = .fillEqually
+        mainStack.addArrangedSubview(actionsRow)
+        
+        // Upload / Replace Button
+        uploadResumeButton.titleLabel?.font = UIFont.systemFont(ofSize: 13, weight: .semibold)
+        uploadResumeButton.setTitleColor(.white, for: .normal)
+        uploadResumeButton.backgroundColor = AppTheme.Colors.blue
+        uploadResumeButton.layer.cornerRadius = AppTheme.Radii.r12
+        uploadResumeButton.heightAnchor.constraint(equalToConstant: 38).isActive = true
+        uploadResumeButton.addTarget(self, action: #selector(didTapUploadResume), for: .touchUpInside)
+        actionsRow.addArrangedSubview(uploadResumeButton)
+        
+        // Remove Button
+        removeResumeButton.titleLabel?.font = UIFont.systemFont(ofSize: 13, weight: .semibold)
+        removeResumeButton.setTitle("Remove", for: .normal)
+        removeResumeButton.setTitleColor(AppTheme.Colors.red, for: .normal)
+        removeResumeButton.setImage(UIImage(systemName: "trash"), for: .normal)
+        removeResumeButton.tintColor = AppTheme.Colors.red
+        removeResumeButton.backgroundColor = AppTheme.Colors.red.withAlphaComponent(0.12)
+        removeResumeButton.layer.cornerRadius = AppTheme.Radii.r12
+        removeResumeButton.layer.borderWidth = 1
+        removeResumeButton.layer.borderColor = AppTheme.Colors.red.withAlphaComponent(0.3).cgColor
+        removeResumeButton.heightAnchor.constraint(equalToConstant: 38).isActive = true
+        removeResumeButton.addTarget(self, action: #selector(didTapRemoveResume), for: .touchUpInside)
+        actionsRow.addArrangedSubview(removeResumeButton)
         
         NSLayoutConstraint.activate([
             title.topAnchor.constraint(equalTo: resumeCard.topAnchor, constant: AppTheme.Spacing.s16),
             title.leadingAnchor.constraint(equalTo: resumeCard.leadingAnchor, constant: AppTheme.Spacing.s18),
             
-            row.topAnchor.constraint(equalTo: title.bottomAnchor, constant: AppTheme.Spacing.s12),
-            row.leadingAnchor.constraint(equalTo: resumeCard.leadingAnchor, constant: AppTheme.Spacing.s18),
-            row.trailingAnchor.constraint(equalTo: resumeCard.trailingAnchor, constant: -AppTheme.Spacing.s18),
-            row.bottomAnchor.constraint(equalTo: resumeCard.bottomAnchor, constant: -AppTheme.Spacing.s18)
-        ])
-    }
-    
-    // MARK: - 7. Account Card
-    private func setupAccountCard() {
-        AppTheme.Effects.applyEchelonGlass(to: accountCard, cornerRadius: AppTheme.Radii.r22)
-        contentView.addArrangedSubview(accountCard)
-        
-        let title = UILabel()
-        title.translatesAutoresizingMaskIntoConstraints = false
-        title.text = "Account & Settings"
-        title.font = AppTheme.Typography.cardTitleBold
-        title.textColor = AppTheme.Colors.textPrimary
-        accountCard.addSubview(title)
-        
-        let editButton = UIButton(type: .system)
-        editButton.translatesAutoresizingMaskIntoConstraints = false
-        editButton.setTitle("Edit Profile & Settings", for: .normal)
-        editButton.setTitleColor(AppTheme.Colors.blue, for: .normal)
-        editButton.titleLabel?.font = UIFont.systemFont(ofSize: 14, weight: .semibold)
-        editButton.setImage(UIImage(systemName: "pencil"), for: .normal)
-        editButton.tintColor = AppTheme.Colors.blue
-        editButton.backgroundColor = AppTheme.Colors.blue.withAlphaComponent(0.12)
-        editButton.layer.cornerRadius = AppTheme.Radii.r12
-        editButton.layer.borderWidth = 1
-        editButton.layer.borderColor = AppTheme.Colors.blue.withAlphaComponent(0.3).cgColor
-        editButton.addTarget(self, action: #selector(didTapSettings), for: .touchUpInside)
-        accountCard.addSubview(editButton)
-        
-        let signOutButton = UIButton(type: .system)
-        signOutButton.translatesAutoresizingMaskIntoConstraints = false
-        signOutButton.setTitle("Sign Out", for: .normal)
-        signOutButton.setTitleColor(AppTheme.Colors.red, for: .normal)
-        signOutButton.titleLabel?.font = UIFont.systemFont(ofSize: 14, weight: .semibold)
-        signOutButton.setImage(UIImage(systemName: "rectangle.portrait.and.arrow.right"), for: .normal)
-        signOutButton.tintColor = AppTheme.Colors.red
-        signOutButton.backgroundColor = AppTheme.Colors.red.withAlphaComponent(0.12)
-        signOutButton.layer.cornerRadius = AppTheme.Radii.r12
-        signOutButton.layer.borderWidth = 1
-        signOutButton.layer.borderColor = AppTheme.Colors.red.withAlphaComponent(0.3).cgColor
-        signOutButton.addTarget(self, action: #selector(didTapSignOut), for: .touchUpInside)
-        accountCard.addSubview(signOutButton)
-        
-        NSLayoutConstraint.activate([
-            title.topAnchor.constraint(equalTo: accountCard.topAnchor, constant: AppTheme.Spacing.s16),
-            title.leadingAnchor.constraint(equalTo: accountCard.leadingAnchor, constant: AppTheme.Spacing.s18),
-            
-            editButton.topAnchor.constraint(equalTo: title.bottomAnchor, constant: AppTheme.Spacing.s14),
-            editButton.leadingAnchor.constraint(equalTo: accountCard.leadingAnchor, constant: AppTheme.Spacing.s18),
-            editButton.trailingAnchor.constraint(equalTo: accountCard.trailingAnchor, constant: -AppTheme.Spacing.s18),
-            editButton.heightAnchor.constraint(equalToConstant: 42),
-            
-            signOutButton.topAnchor.constraint(equalTo: editButton.bottomAnchor, constant: AppTheme.Spacing.s10),
-            signOutButton.leadingAnchor.constraint(equalTo: accountCard.leadingAnchor, constant: AppTheme.Spacing.s18),
-            signOutButton.trailingAnchor.constraint(equalTo: accountCard.trailingAnchor, constant: -AppTheme.Spacing.s18),
-            signOutButton.heightAnchor.constraint(equalToConstant: 42),
-            signOutButton.bottomAnchor.constraint(equalTo: accountCard.bottomAnchor, constant: -AppTheme.Spacing.s18)
+            mainStack.topAnchor.constraint(equalTo: title.bottomAnchor, constant: AppTheme.Spacing.s12),
+            mainStack.leadingAnchor.constraint(equalTo: resumeCard.leadingAnchor, constant: AppTheme.Spacing.s18),
+            mainStack.trailingAnchor.constraint(equalTo: resumeCard.trailingAnchor, constant: -AppTheme.Spacing.s18),
+            mainStack.bottomAnchor.constraint(equalTo: resumeCard.bottomAnchor, constant: -AppTheme.Spacing.s18)
         ])
     }
     
     // MARK: - Reload Data
     private func reloadProfileData() {
         let p = MatchStore.shared.studentProfile
-        let dispName = p.name ?? AuthService.shared.userDisplayName ?? "Alex Chen"
+        let dispName = (p.name?.isEmpty == false ? p.name : nil) ?? AuthService.shared.userDisplayName ?? "Student"
         nameLabel.text = dispName
         
-        // Circular avatar letter fallback (e.g. Samuel -> 'S')
+        // Circular avatar letter fallback
         let initial = String(dispName.prefix(1)).uppercased()
         avatarInitialLabel.text = initial.isEmpty ? "S" : initial
         
@@ -456,6 +462,9 @@ class ProfileViewController: UIViewController {
                     self?.avatarImageView.image = img
                     self?.avatarImageView.isHidden = false
                     self?.avatarInitialLabel.isHidden = true
+                } else {
+                    self?.avatarImageView.isHidden = true
+                    self?.avatarInitialLabel.isHidden = false
                 }
             }
         } else {
@@ -463,20 +472,22 @@ class ProfileViewController: UIViewController {
             avatarInitialLabel.isHidden = false
         }
         
-        let uni = p.university ?? "Virginia Tech"
-        headlineLabel.text = "\(p.major) · \(uni) '\(p.graduationYear % 100)"
+        let uni = (p.university?.isEmpty == false ? p.university! : "Virginia Tech")
+        let majorStr = p.major.isEmpty ? "Computer Science" : p.major
+        let gradYearStr = p.graduationYear > 0 ? "'\(p.graduationYear % 100)" : "'27"
+        headlineLabel.text = "\(majorStr) · \(uni) \(gradYearStr)"
         
         if let gpa = p.gpa {
             gpaLabel.text = String(format: " %.2f GPA", gpa)
         } else {
-            gpaLabel.text = " 3.92 GPA"
+            gpaLabel.text = " 3.80 GPA"
         }
-        bioLabel.text = p.bio ?? "Passionate about systems engineering and applied ML. Seeking research and engineering internships."
+        bioLabel.text = (p.bio?.isEmpty == false ? p.bio : nil) ?? "Passionate about software systems, machine learning, and campus opportunities."
         
         // Education rows
         educationStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
         educationStack.addArrangedSubview(makePrefRow(title: "School", value: uni))
-        educationStack.addArrangedSubview(makePrefRow(title: "Degree & Major", value: "\(p.degree ?? "B.S.") in \(p.major)"))
+        educationStack.addArrangedSubview(makePrefRow(title: "Degree & Major", value: "\(p.degree ?? "B.S.") in \(majorStr)"))
         if let minor = p.minor, !minor.isEmpty {
             educationStack.addArrangedSubview(makePrefRow(title: "Minor", value: minor))
         }
@@ -490,7 +501,7 @@ class ProfileViewController: UIViewController {
         }
         
         // Skills
-        skillsFlow.setTags(p.skills, customColor: AppTheme.Colors.cyan)
+        skillsFlow.setTags(p.skills.isEmpty ? ["Python", "Swift", "Git"] : p.skills, customColor: AppTheme.Colors.cyan)
         
         // Preferences
         preferencesStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
@@ -503,31 +514,53 @@ class ProfileViewController: UIViewController {
         if !p.locationPreferences.isEmpty {
             preferencesStack.addArrangedSubview(makePrefRow(title: "Preferred Locations", value: p.locationPreferences.joined(separator: ", ")))
         }
-        if let comp = p.compensationPreference {
+        if let comp = p.compensationPreference, !comp.isEmpty {
             preferencesStack.addArrangedSubview(makePrefRow(title: "Target Pay", value: comp))
         }
         
-        // Resume
-        resumeFileNameLabel.text = p.resume?.fileName ?? "Resume Attached"
+        // Resume UI State
+        if let resume = p.resume, !resume.fileName.isEmpty {
+            resumeFileNameLabel.text = resume.fileName
+            resumeFileNameLabel.textColor = AppTheme.Colors.textPrimary
+            uploadResumeButton.setTitle("Replace Resume", for: .normal)
+            uploadResumeButton.setImage(UIImage(systemName: "arrow.triangle.2.circlepath"), for: .normal)
+            removeResumeButton.isHidden = false
+        } else {
+            resumeFileNameLabel.text = "No resume attached"
+            resumeFileNameLabel.textColor = AppTheme.Colors.textTertiary
+            uploadResumeButton.setTitle("Add Resume", for: .normal)
+            uploadResumeButton.setImage(UIImage(systemName: "doc.badge.plus"), for: .normal)
+            removeResumeButton.isHidden = true
+        }
+        uploadResumeButton.tintColor = .white
     }
     
     private func makePrefRow(title: String, value: String) -> UIView {
         let row = UIStackView()
         row.translatesAutoresizingMaskIntoConstraints = false
         row.axis = .horizontal
-        row.distribution = .equalSpacing
-        row.alignment = .center
+        row.distribution = .fill
+        row.alignment = .firstBaseline
+        row.spacing = AppTheme.Spacing.s12
         
         let tLabel = UILabel()
+        tLabel.translatesAutoresizingMaskIntoConstraints = false
         tLabel.text = title
         tLabel.font = AppTheme.Typography.bodyMedium
         tLabel.textColor = AppTheme.Colors.textSecondary
+        tLabel.setContentHuggingPriority(.required, for: .horizontal)
+        tLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
         row.addArrangedSubview(tLabel)
         
         let vLabel = UILabel()
+        vLabel.translatesAutoresizingMaskIntoConstraints = false
         vLabel.text = value
         vLabel.font = AppTheme.Typography.bodySemibold
         vLabel.textColor = AppTheme.Colors.textPrimary
+        vLabel.textAlignment = .right
+        vLabel.numberOfLines = 0
+        vLabel.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        vLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         row.addArrangedSubview(vLabel)
         
         return row
@@ -541,16 +574,72 @@ class ProfileViewController: UIViewController {
         present(hosting, animated: true)
     }
     
-    @objc private func didTapSignOut() {
+    @objc private func didTapUploadResume() {
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [UTType.pdf], asCopy: true)
+        picker.delegate = self
+        picker.allowsMultipleSelection = false
+        present(picker, animated: true)
+    }
+    
+    @objc private func didTapRemoveResume() {
         let alert = UIAlertController(
-            title: "Sign Out",
-            message: "Are you sure you want to sign out?",
+            title: "Remove Resume",
+            message: "Are you sure you want to remove your attached resume?",
             preferredStyle: .alert
         )
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Sign Out", style: .destructive, handler: { _ in
-            AuthService.shared.signOut()
+        alert.addAction(UIAlertAction(title: "Remove", style: .destructive, handler: { [weak self] _ in
+            MatchStore.shared.studentProfile.resume = nil
+            MatchStore.shared.saveState()
+            self?.reloadProfileData()
         }))
         present(alert, animated: true)
+    }
+}
+
+// MARK: - UIDocumentPickerDelegate
+extension ProfileViewController: UIDocumentPickerDelegate {
+    func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+        guard let selectedUrl = urls.first else { return }
+        
+        let shouldStopAccessing = selectedUrl.startAccessingSecurityScopedResource()
+        defer {
+            if shouldStopAccessing {
+                selectedUrl.stopAccessingSecurityScopedResource()
+            }
+        }
+        
+        do {
+            let data = try Data(contentsOf: selectedUrl)
+            let fileName = selectedUrl.lastPathComponent
+            
+            MatchStore.shared.studentProfile.resume = Resume(fileName: fileName)
+            MatchStore.shared.saveState()
+            self.reloadProfileData()
+            
+            Task {
+                if let parsed = try? await APIService.shared.parseResume(pdfData: data, fileName: fileName) {
+                    await MainActor.run {
+                        MatchStore.shared.studentProfile.resume = Resume(fileName: fileName, parsedData: parsed)
+                        if let name = parsed.name, !name.isEmpty {
+                            MatchStore.shared.studentProfile.name = name
+                        }
+                        if let major = parsed.major, !major.isEmpty {
+                            MatchStore.shared.studentProfile.major = major
+                        }
+                        if let skills = parsed.skills, !skills.isEmpty {
+                            MatchStore.shared.studentProfile.skills = skills
+                        }
+                        if let coursework = parsed.coursework, !coursework.isEmpty {
+                            MatchStore.shared.studentProfile.coursework = coursework
+                        }
+                        MatchStore.shared.saveState()
+                        self.reloadProfileData()
+                    }
+                }
+            }
+        } catch {
+            print("Failed to read selected PDF: \(error)")
+        }
     }
 }

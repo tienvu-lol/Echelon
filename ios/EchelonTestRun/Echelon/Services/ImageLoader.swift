@@ -31,6 +31,17 @@ public final class ImageLoader {
             return
         }
         
+        // Support local file URLs for profile avatars and cached images
+        if url.isFileURL {
+            if let image = UIImage(contentsOfFile: url.path) {
+                self.memoryCache.setObject(image, forKey: cacheKey)
+                DispatchQueue.main.async {
+                    completion(image)
+                }
+                return
+            }
+        }
+        
         let request = URLRequest(url: url)
         if let cachedResponse = session.configuration.urlCache?.cachedResponse(for: request),
            let image = UIImage(data: cachedResponse.data) {
@@ -89,6 +100,7 @@ public struct RemoteImageView: View {
                 Image(uiImage: uiImage)
                     .resizable()
                     .aspectRatio(contentMode: contentMode)
+                    .frame(maxWidth: .infinity)
             } else if isLoading {
                 ZStack {
                     LinearGradient(
@@ -128,8 +140,8 @@ public struct RemoteImageView: View {
         }
         
         self.isLoading = true
-        ImageLoader.shared.loadImage(from: urlString) { loaded in
-            self.image = loaded
+        ImageLoader.shared.loadImage(from: urlString) { loadedImage in
+            self.image = loadedImage
             self.isLoading = false
         }
     }

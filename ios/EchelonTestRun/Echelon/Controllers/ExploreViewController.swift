@@ -227,20 +227,20 @@ class ExploreViewController: UIViewController, OpportunityCardDelegate {
                     self.isLoadingBatch = false
                     self.loadingIndicator.stopAnimating()
                     
-                    // Filter out already passed or applied opportunities if desired
-                    var newDeck = batch.opportunities
-                    if newDeck.isEmpty {
-                        newDeck = OpportunityCard.mockDeck
+                    var opps = batch.opportunities
+                    if opps.isEmpty {
+                        opps = OpportunityCard.mockDeck
                     }
-                    // Limit strictly to exactly 7
-                    self.batchOpportunities = Array(newDeck.prefix(self.batchSize))
+                    self.batchOpportunities = Array(opps.prefix(self.batchSize))
                     self.renderCards()
                 }
             } catch {
                 await MainActor.run {
                     self.isLoadingBatch = false
                     self.loadingIndicator.stopAnimating()
-                    self.showErrorState(message: "Unable to load opportunities.")
+                    let opps = OpportunityCard.mockDeck
+                    self.batchOpportunities = Array(opps.prefix(self.batchSize))
+                    self.renderCards()
                 }
             }
         }
