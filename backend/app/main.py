@@ -19,3 +19,9 @@ app.include_router(test_gemini_router)
 app.include_router(profile_router)
 app.include_router(test_databricks_router)
 app.include_router(auth_router)
+
+from app.api.opportunities import router as opportunities_router
+from app.api.agent import router as agent_router
+
+app.include_router(opportunities_router)
+app.include_router(agent_router)

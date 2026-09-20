@@ -61,7 +61,7 @@ def test_gemini_passes_correct_model_and_prompt(mocker):
 
     mock_client.models.generate_content.assert_called_once()
     call_kwargs = mock_client.models.generate_content.call_args
-    assert call_kwargs.kwargs.get("model") == "gemini-3.5-flash"
+    assert call_kwargs.kwargs.get("model") == "gemini-3.8-flash"
 
 
 # ---------------------------------------------------------------------------
