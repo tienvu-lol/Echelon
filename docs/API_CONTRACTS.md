@@ -119,8 +119,87 @@ Response: `RecommendationsResponse`
       "eligibility_notes": []
     }
   ]
+    }
+  ]
 }
 ```
+
+---
+
+## POST /api/swipes
+
+Requires: `Authorization: Bearer <Firebase ID Token>`
+
+Accepts JSON:
+```json
+{
+  "opportunity_id": "opp-001",
+  "direction": "right"
+}
+```
+*Note: `direction` can be "left" or "right". Right swipe saves the opportunity, left unsaves it.*
+
+Response: `SwipeResponse`
+```json
+{
+  "id": "dummy",
+  "student_id": "user123",
+  "opportunity_id": "opp-001",
+  "direction": "right",
+  "created_at": "2026-09-20T00:00:00Z"
+}
+```
+*Label: UNIT-TESTED*
+
+---
+
+## GET /api/saved
+
+Requires: `Authorization: Bearer <Firebase ID Token>`
+
+Response: `SavedOpportunitiesResponse`
+```json
+{
+  "student_id": "user123",
+  "opportunities": [
+    {
+      "id": "opp-001",
+      "title": "Systems Software Intern",
+      ...
+    }
+  ]
+}
+```
+*Label: UNIT-TESTED*
+
+---
+
+## POST /api/saved/{opportunity_id}
+
+Requires: `Authorization: Bearer <Firebase ID Token>`
+
+Response:
+```json
+{
+  "student_id": "user123",
+  "opportunity_id": "opp-001"
+}
+```
+*Label: UNIT-TESTED*
+
+---
+
+## DELETE /api/saved/{opportunity_id}
+
+Requires: `Authorization: Bearer <Firebase ID Token>`
+
+Response:
+```json
+{
+  "status": "success"
+}
+```
+*Label: UNIT-TESTED*
 
 ---
 

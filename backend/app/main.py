@@ -22,6 +22,8 @@ app.include_router(auth_router)
 
 from app.api.agent import router as agent_router
 from app.api.opportunities import router as opportunities_router
+from app.api.swipes import router as swipes_router
 
 app.include_router(opportunities_router)
 app.include_router(agent_router)
+app.include_router(swipes_router)

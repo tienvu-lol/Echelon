@@ -391,16 +391,13 @@ class TestSetupTablesDDL:
 
 class TestMigrateSchema:
     def test_migrate_schema_no_missing_columns(self, mocker):
-        """When all columns are already present, no ALTER TABLE statements are run."""
+        """When all columns are already present across all tables, no ALTER TABLE statements are run."""
         _patch_settings(mocker)
         mock_client = MagicMock()
 
-        # Mock setup_tables responses (succeeds)
         success_resp = _make_statement_response("SUCCEEDED")
 
-        # Mock DESCRIBE TABLE response with all Phase 2 columns
-        desc_resp = _make_statement_response("SUCCEEDED")
-        desc_resp.result.data_array = [
+        opp_cols = [
             ["id", "string", ""],
             ["title", "string", ""],
             ["organization", "string", ""],
@@ -416,13 +413,48 @@ class TestMigrateSchema:
             ["career_tracks", "string", ""],
             ["remote_status", "string", ""],
         ]
+        cp_cols = [
+            ["firebase_uid", "string", ""],
+            ["career_tracks", "string", ""],
+            ["preferred_role_types", "array<string>", ""],
+            ["preferred_locations", "array<string>", ""],
+            ["remote_preference", "string", ""],
+            ["industries_of_interest", "array<string>", ""],
+            ["technologies_to_use", "array<string>", ""],
+            ["technologies_to_learn", "array<string>", ""],
+            ["research_vs_industry", "string", ""],
+            ["startup_vs_large_company", "string", ""],
+            ["career_goals", "string", ""],
+            ["other_preferences", "string", ""],
+        ]
+        swipes_cols = [
+            ["id", "string", ""],
+            ["student_id", "string", ""],
+            ["opportunity_id", "string", ""],
+            ["direction", "string", ""],
+            ["created_at", "timestamp", ""],
+        ]
+        saved_cols = [
+            ["student_id", "string", ""],
+            ["opportunity_id", "string", ""],
+            ["created_at", "timestamp", ""],
+        ]
 
         statements_executed = []
 
         def fake_execute(statement, **kwargs):
             statements_executed.append(statement)
             if "DESCRIBE TABLE" in statement:
-                return desc_resp
+                resp = _make_statement_response("SUCCEEDED")
+                if "saved_opportunities" in statement:
+                    resp.result.data_array = saved_cols
+                elif "opportunities" in statement:
+                    resp.result.data_array = opp_cols
+                elif "career_preferences" in statement:
+                    resp.result.data_array = cp_cols
+                elif "swipes" in statement:
+                    resp.result.data_array = swipes_cols
+                return resp
             return success_resp
 
         mock_client.statement_execution.execute_statement.side_effect = fake_execute
@@ -432,14 +464,13 @@ class TestMigrateSchema:
 
         assert summary["columns_added"] == []
         assert any("UPDATE opportunities SET active = true" in s for s in statements_executed)
-        assert not any("ALTER TABLE opportunities ADD COLUMN" in s for s in statements_executed)
+        assert not any("ALTER TABLE" in s for s in statements_executed)
 
     def test_migrate_schema_adds_missing_columns(self, mocker):
         """When columns are missing, ALTER TABLE statements are executed."""
         _patch_settings(mocker)
         mock_client = MagicMock()
 
-        # DESCRIBE only returns baseline columns
         desc_resp = _make_statement_response("SUCCEEDED")
         desc_resp.result.data_array = [
             ["id", "string", ""],
@@ -466,6 +497,85 @@ class TestMigrateSchema:
         alter_statements = [s for s in statements_executed if "ALTER TABLE opportunities ADD COLUMN" in s]
         assert len(alter_statements) == 11
         assert any("UPDATE opportunities SET active = true" in s for s in statements_executed)
+
+    def test_migrate_schema_upgrades_career_preferences_when_missing(self, mocker):
+        """When career_preferences has missing columns, they are added via ALTER TABLE."""
+        _patch_settings(mocker)
+        mock_client = MagicMock()
+
+        statements_executed = []
+
+        def fake_execute(statement, **kwargs):
+            statements_executed.append(statement)
+            if "DESCRIBE TABLE" in statement:
+                resp = _make_statement_response("SUCCEEDED")
+                if "career_preferences" in statement:
+                    # Missing career_tracks and other_preferences
+                    resp.result.data_array = [["firebase_uid", "string", ""]]
+                else:
+                    # Other tables full
+                    resp.result.data_array = [
+                        ["id", "string", ""], ["title", "string", ""], ["organization", "string", ""],
+                        ["source_name", "string", ""], ["source_age", "string", ""], ["active", "boolean", ""],
+                        ["first_seen_at", "timestamp", ""], ["last_seen_at", "timestamp", ""],
+                        ["school_restrictions", "array<string>", ""], ["eligibility_notes", "array<string>", ""],
+                        ["degree_levels", "array<string>", ""], ["work_authorization_requirements", "array<string>", ""],
+                        ["career_tracks", "string", ""], ["remote_status", "string", ""],
+                        ["student_id", "string", ""], ["opportunity_id", "string", ""],
+                        ["direction", "string", ""], ["created_at", "timestamp", ""],
+                    ]
+                return resp
+            return _make_statement_response("SUCCEEDED")
+
+        mock_client.statement_execution.execute_statement.side_effect = fake_execute
+
+        with patch("app.services.databricks_service.WorkspaceClient", return_value=mock_client):
+            summary = migrate_schema()
+
+        assert "career_preferences.career_tracks" in summary["columns_added"]
+        cp_alters = [s for s in statements_executed if "ALTER TABLE career_preferences ADD COLUMN" in s]
+        assert len(cp_alters) > 0
+
+    def test_migrate_schema_upgrades_swipes_and_saved_when_missing(self, mocker):
+        """When swipes and saved_opportunities are missing columns, they are added via ALTER TABLE."""
+        _patch_settings(mocker)
+        mock_client = MagicMock()
+
+        statements_executed = []
+
+        def fake_execute(statement, **kwargs):
+            statements_executed.append(statement)
+            if "DESCRIBE TABLE" in statement:
+                resp = _make_statement_response("SUCCEEDED")
+                if "swipes" in statement:
+                    resp.result.data_array = [["id", "string", ""]]
+                elif "saved_opportunities" in statement:
+                    resp.result.data_array = [["student_id", "string", ""]]
+                else:
+                    resp.result.data_array = [
+                        ["id", "string", ""], ["title", "string", ""], ["organization", "string", ""],
+                        ["source_name", "string", ""], ["source_age", "string", ""], ["active", "boolean", ""],
+                        ["first_seen_at", "timestamp", ""], ["last_seen_at", "timestamp", ""],
+                        ["school_restrictions", "array<string>", ""], ["eligibility_notes", "array<string>", ""],
+                        ["degree_levels", "array<string>", ""], ["work_authorization_requirements", "array<string>", ""],
+                        ["career_tracks", "string", ""], ["remote_status", "string", ""],
+                        ["firebase_uid", "string", ""], ["preferred_role_types", "array<string>", ""],
+                        ["preferred_locations", "array<string>", ""], ["remote_preference", "string", ""],
+                        ["industries_of_interest", "array<string>", ""], ["technologies_to_use", "array<string>", ""],
+                        ["technologies_to_learn", "array<string>", ""], ["research_vs_industry", "string", ""],
+                        ["startup_vs_large_company", "string", ""], ["career_goals", "string", ""],
+                        ["other_preferences", "string", ""],
+                    ]
+                return resp
+            return _make_statement_response("SUCCEEDED")
+
+        mock_client.statement_execution.execute_statement.side_effect = fake_execute
+
+        with patch("app.services.databricks_service.WorkspaceClient", return_value=mock_client):
+            summary = migrate_schema()
+
+        assert "swipes.student_id" in summary["columns_added"]
+        assert "saved_opportunities.opportunity_id" in summary["columns_added"]
 
     def test_migrate_schema_failure_raises(self, mocker):
         """Failure during ALTER TABLE raises DatabricksServiceError."""

@@ -51,6 +51,175 @@ public struct MatchAnalysis: Codable, Equatable, Hashable {
     }
 }
 
+// MARK: - Backend Recommendation Models
+
+public struct CareerTrackAffinity: Codable, Equatable, Hashable {
+    public let track: String
+    public let weight: Double
+
+    public init(track: String, weight: Double) {
+        self.track = track
+        self.weight = weight
+    }
+}
+
+public struct Opportunity: Codable, Identifiable, Equatable, Hashable {
+    public let id: String
+    public let title: String
+    public let organization: String
+    public let opportunityType: String
+    public let description: String
+    public let sourceUrl: String
+    public let sourceName: String?
+    public let sourceAge: String?
+    public let active: Bool
+    public let firstSeenAt: String?
+    public let lastSeenAt: String?
+    public let skills: [String]
+    public let interests: [String]
+    public let eligibility: [String]
+    public let majors: [String]
+    public let classYears: [String]
+    public let schoolRestrictions: [String]
+    public let eligibilityNotes: [String]
+    public let degreeLevels: [String]
+    public let workAuthorizationRequirements: [String]
+    public let careerTracks: [CareerTrackAffinity]
+    public let location: String?
+    public let remoteStatus: String?
+    public let timeCommitment: String?
+    public let compensation: String?
+    public let deadline: String?
+    public let applyUrl: String?
+    public let contactName: String?
+    public let contactEmail: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, organization, description, active, skills, interests
+        case eligibility, majors, location, compensation, deadline
+        case opportunityType = "opportunity_type"
+        case sourceUrl = "source_url"
+        case sourceName = "source_name"
+        case sourceAge = "source_age"
+        case firstSeenAt = "first_seen_at"
+        case lastSeenAt = "last_seen_at"
+        case classYears = "class_years"
+        case schoolRestrictions = "school_restrictions"
+        case eligibilityNotes = "eligibility_notes"
+        case degreeLevels = "degree_levels"
+        case workAuthorizationRequirements = "work_authorization_requirements"
+        case careerTracks = "career_tracks"
+        case remoteStatus = "remote_status"
+        case timeCommitment = "time_commitment"
+        case applyUrl = "apply_url"
+        case contactName = "contact_name"
+        case contactEmail = "contact_email"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decode(String.self, forKey: .id)
+        self.title = try container.decode(String.self, forKey: .title)
+        self.organization = try container.decode(String.self, forKey: .organization)
+        self.opportunityType = (try? container.decodeIfPresent(String.self, forKey: .opportunityType)) ?? "Internship"
+        self.description = (try? container.decodeIfPresent(String.self, forKey: .description)) ?? ""
+        self.sourceUrl = (try? container.decodeIfPresent(String.self, forKey: .sourceUrl)) ?? ""
+        self.sourceName = try container.decodeIfPresent(String.self, forKey: .sourceName)
+        self.sourceAge = try container.decodeIfPresent(String.self, forKey: .sourceAge)
+        self.active = (try? container.decodeIfPresent(Bool.self, forKey: .active)) ?? true
+        self.firstSeenAt = try container.decodeIfPresent(String.self, forKey: .firstSeenAt)
+        self.lastSeenAt = try container.decodeIfPresent(String.self, forKey: .lastSeenAt)
+        self.skills = (try? container.decodeIfPresent([String].self, forKey: .skills)) ?? []
+        self.interests = (try? container.decodeIfPresent([String].self, forKey: .interests)) ?? []
+        self.eligibility = (try? container.decodeIfPresent([String].self, forKey: .eligibility)) ?? []
+        self.majors = (try? container.decodeIfPresent([String].self, forKey: .majors)) ?? []
+        self.classYears = (try? container.decodeIfPresent([String].self, forKey: .classYears)) ?? []
+        self.schoolRestrictions = (try? container.decodeIfPresent([String].self, forKey: .schoolRestrictions)) ?? []
+        self.eligibilityNotes = (try? container.decodeIfPresent([String].self, forKey: .eligibilityNotes)) ?? []
+        self.degreeLevels = (try? container.decodeIfPresent([String].self, forKey: .degreeLevels)) ?? []
+        self.workAuthorizationRequirements = (try? container.decodeIfPresent([String].self, forKey: .workAuthorizationRequirements)) ?? []
+        self.careerTracks = (try? container.decodeIfPresent([CareerTrackAffinity].self, forKey: .careerTracks)) ?? []
+        self.location = try container.decodeIfPresent(String.self, forKey: .location)
+        self.remoteStatus = try container.decodeIfPresent(String.self, forKey: .remoteStatus)
+        self.timeCommitment = try container.decodeIfPresent(String.self, forKey: .timeCommitment)
+        self.compensation = try container.decodeIfPresent(String.self, forKey: .compensation)
+        self.deadline = try container.decodeIfPresent(String.self, forKey: .deadline)
+        self.applyUrl = try container.decodeIfPresent(String.self, forKey: .applyUrl)
+        self.contactName = try container.decodeIfPresent(String.self, forKey: .contactName)
+        self.contactEmail = try container.decodeIfPresent(String.self, forKey: .contactEmail)
+    }
+}
+
+public struct RecommendationItem: Codable, Identifiable, Equatable, Hashable {
+    public let opportunity: Opportunity
+    public let score: Double
+    public let matchReason: String
+    public let matchedTraits: [String]
+    public let gaps: [String]
+    public let careerTrackFit: [String]
+    public let eligibilityStatus: String
+    public let eligibilityNotes: [String]
+
+    public var id: String { opportunity.id }
+
+    enum CodingKeys: String, CodingKey {
+        case opportunity, score, gaps
+        case matchReason = "match_reason"
+        case matchedTraits = "matched_traits"
+        case careerTrackFit = "career_track_fit"
+        case eligibilityStatus = "eligibility_status"
+        case eligibilityNotes = "eligibility_notes"
+    }
+
+    public var card: OpportunityCard {
+        OpportunityCard(
+            id: opportunity.id,
+            title: opportunity.title,
+            organization: opportunity.organization,
+            opportunityType: opportunity.opportunityType,
+            description: opportunity.description,
+            fullDescription: opportunity.description,
+            skills: opportunity.skills,
+            preferredSkills: opportunity.interests,
+            qualifications: opportunity.eligibility,
+            responsibilities: nil,
+            coursework: opportunity.majors,
+            location: opportunity.location,
+            workMode: opportunity.remoteStatus,
+            paid: opportunity.compensation != nil,
+            deadline: opportunity.deadline,
+            applyUrl: opportunity.applyUrl ?? opportunity.sourceUrl,
+            explanation: matchReason,
+            compensation: opportunity.compensation,
+            duration: opportunity.timeCommitment,
+            startDate: nil,
+            matchPercentage: min(100, max(0, Int(score.rounded()))),
+            matchAnalysis: MatchAnalysis(
+                overallMatch: min(100, max(0, Int(score.rounded()))),
+                skillsMatch: min(100, max(0, Int(score.rounded()))),
+                courseworkMatch: nil,
+                experienceMatch: nil,
+                preferencesMatch: nil,
+                explanation: matchReason
+            ),
+            imageUrl: nil,
+            organizationLogoUrl: nil,
+            companyLogoName: nil,
+            accentHex: nil
+        )
+    }
+}
+
+public struct RecommendationsResponse: Codable, Equatable {
+    public let studentId: String
+    public let opportunities: [RecommendationItem]
+
+    enum CodingKeys: String, CodingKey {
+        case opportunities
+        case studentId = "student_id"
+    }
+}
+
 // MARK: - Resume Models
 
 public struct ParsedResumeData: Codable, Equatable, Hashable {

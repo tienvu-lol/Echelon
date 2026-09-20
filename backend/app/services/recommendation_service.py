@@ -16,13 +16,17 @@ class RecommendationServiceError(Exception):
     pass
 
 
+class StudentProfileNotFoundError(RecommendationServiceError):
+    pass
+
+
 def get_recommendations(uid: str, limit: int = 10) -> RecommendationsResponse:
     """End-to-end recommendation workflow."""
 
     # 1. Load context
     profile = databricks_service.get_student_profile(uid)
     if not profile:
-        raise RecommendationServiceError(
+        raise StudentProfileNotFoundError(
             "Student profile not found. Please complete onboarding first."
         )
 

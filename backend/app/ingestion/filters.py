@@ -62,6 +62,9 @@ class IngestionPipeline:
         title = opp.title.lower()
         desc = opp.description.lower() if opp.description else ""
 
+        if opp.source_name == "Virginia Tech":
+            return self._is_campus_relevant(title, desc)
+
         # Immediate rejection if banned keyword in title
         if any(banned in title for banned in self.banned_keywords):
             return False
@@ -76,6 +79,24 @@ class IngestionPipeline:
         # If title is vague, check if description has strong tech indicators
         tech_hits = sum(1 for tech in self.tech_keywords if tech in desc)
         if tech_hits >= 2:
+            return True
+
+        return False
+
+    def _is_campus_relevant(self, title: str, desc: str) -> bool:
+        """Campus specific relevance heuristic. More lenient but rejects explicit non-tech."""
+        if any(banned in title for banned in self.banned_keywords):
+            return False
+
+        campus_tech_keywords = self.tech_keywords.union({
+            "computational", "web", "database", "analytics", "it support", "programming", "scripting"
+        })
+
+        if any(tech in title for tech in campus_tech_keywords):
+            return True
+
+        tech_hits = sum(1 for tech in campus_tech_keywords if tech in desc)
+        if tech_hits >= 1:
             return True
 
         return False

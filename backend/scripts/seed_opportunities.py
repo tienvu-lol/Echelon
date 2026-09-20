@@ -106,10 +106,14 @@ def seed_opportunities(file_path: Path | str | None = None) -> list[Opportunity]
     return opportunities
 
 
-if __name__ == "__main__":
+def main() -> None:
     try:
         seed_opportunities()
     except Exception as err:
         print(f"Error during opportunity seeding: {err}", file=sys.stderr)
         sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
 

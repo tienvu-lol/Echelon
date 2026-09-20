@@ -24,7 +24,6 @@ client = TestClient(app)
 
 def _make_sample_student(uid: str = "vt-student-1") -> StudentProfile:
     return StudentProfile(
-        id=uid,
         major="Computer Science",
         class_year="Junior",
         bio="Passionate about systems and distributed computing.",
@@ -197,3 +196,29 @@ class TestRecommendationAPIRoute:
             assert "match_reason" in data["opportunities"][0]
         finally:
             app.dependency_overrides.clear()
+
+    def test_get_recommendations_missing_uid_returns_401(self):
+        """GET /api/opportunities/recommendations rejects token missing uid."""
+        with patch("app.api.deps.FirebaseService.verify_token", return_value={"email": "nouid@vt.edu"}):
+            response = client.get(
+                "/api/opportunities/recommendations",
+                headers={"Authorization": "Bearer mock-firebase-token"},
+            )
+        assert response.status_code == 401
+
+    def test_get_recommendations_sanitizes_errors(self):
+        """GET /api/opportunities/recommendations returns sanitized 500 without leaking error details."""
+        from app.services.recommendation_service import RecommendationServiceError
+
+        mock_user = {"uid": "user-abc"}
+        with (
+            patch("app.api.deps.FirebaseService.verify_token", return_value=mock_user),
+            patch("app.api.opportunities.fetch_recommendations", side_effect=RecommendationServiceError("Internal DB failure")),
+        ):
+            response = client.get(
+                "/api/opportunities/recommendations",
+                headers={"Authorization": "Bearer mock-token"},
+            )
+        assert response.status_code == 500
+        assert "Failed to generate recommendations." in response.json()["detail"]
+        assert "Internal DB failure" not in response.json()["detail"]

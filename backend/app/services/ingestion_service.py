@@ -11,6 +11,7 @@ from typing import Any, Optional
 from app.ingestion.base import BaseSourceAdapter
 from app.ingestion.filters import IngestionPipeline
 from app.ingestion.simplify_jobs import SimplifyJobsAdapter
+from app.ingestion.virginia_tech import VirginiaTechAdapter
 from app.models.opportunity import Opportunity
 from app.services import databricks_service, gemini_service
 
@@ -23,6 +24,19 @@ _DISALLOWED_DUMMY_ORGS = {"mockorg", "dummycorp", "testorganization"}
 
 class IngestionServiceError(Exception):
     """Raised when ingestion pipeline execution fails."""
+
+
+def get_adapters_for_source(source: str) -> list[tuple[str, BaseSourceAdapter]]:
+    """Return the configured adapters for a source selector."""
+    adapters = {
+        "simplify": SimplifyJobsAdapter,
+        "vt": VirginiaTechAdapter,
+    }
+    if source == "all":
+        return [(name, adapter()) for name, adapter in adapters.items()]
+    if source not in adapters:
+        raise ValueError(f"Unknown source: {source}")
+    return [(source, adapters[source]())]
 
 
 def _is_real_opportunity(opp: Opportunity) -> bool:
@@ -42,39 +56,30 @@ def _is_real_opportunity(opp: Opportunity) -> bool:
 
 
 def run_ingestion_pipeline(
-    adapter: Optional[BaseSourceAdapter] = None,
+    source: str = "all",
     strict_tech_only: bool = True,
     max_items: Optional[int] = None,
 ) -> dict[str, Any]:
-    """Execute the full ingestion pipeline from source adapter to Databricks lakehouse.
+    """Execute the full ingestion pipeline from source adapters to Databricks lakehouse."""
+    adapters_to_run = get_adapters_for_source(source)
 
-    Workflow:
-    1. Fetch opportunities from source adapter (defaults to SimplifyJobsAdapter).
-    2. Filter out simulation/dummy records.
-    3. Apply quality and tech domain relevance filters via IngestionPipeline.
-    4. Enrich passed opportunities with Gemini career track classification.
-    5. Persist/upsert validated opportunities into Databricks.
+    logger.info("Starting ingestion with sources %s...", source)
 
-    Args:
-        adapter: Source adapter instance (e.g. SimplifyJobsAdapter).
-        strict_tech_only: Whether to filter out non-tech opportunities.
-        max_items: Optional limit on the number of items to enrich and persist.
+    raw_items = []
+    processed_sources = 0
+    failed_sources = []
+    for source_name, adapter in adapters_to_run:
+        logger.info("Running adapter: %s", adapter.__class__.__name__)
+        try:
+            items = list(adapter.fetch_opportunities())
+            logger.info("Adapter %s returned %d items", adapter.__class__.__name__, len(items))
+            raw_items.extend(items)
+            processed_sources += 1
+        except Exception as e:
+            logger.error("Adapter %s failed: %s", adapter.__class__.__name__, e)
+            failed_sources.append(source_name)
 
-    Returns:
-        Summary dict containing counts of fetched, filtered, classified, and persisted opportunities.
-    """
-    if adapter is None:
-        adapter = SimplifyJobsAdapter()
-
-    logger.info("Starting ingestion with adapter %s...", adapter.__class__.__name__)
-
-    try:
-        raw_items = list(adapter.fetch_opportunities())
-    except Exception as exc:
-        logger.error("Failed to fetch opportunities from adapter: %s", exc)
-        raise IngestionServiceError(f"Adapter fetch failed: {exc}") from exc
-
-    logger.info("Fetched %d raw opportunities from source.", len(raw_items))
+    logger.info("Fetched %d total raw opportunities.", len(raw_items))
 
     # Reject any dummy/mock records
     legit_items = [opp for opp in raw_items if _is_real_opportunity(opp)]
@@ -86,6 +91,7 @@ def run_ingestion_pipeline(
     # 2. Filter via IngestionPipeline
     pipeline = IngestionPipeline(strict_tech_only=strict_tech_only)
     passed_items = pipeline.process_batch(legit_items)
+    filtered_count = len(raw_items) - len(passed_items)
     logger.info("Passed ingestion filters: %d opportunities.", len(passed_items))
 
     if max_items is not None and max_items > 0:
@@ -121,6 +127,12 @@ def run_ingestion_pipeline(
             raise IngestionServiceError(f"Databricks persistence failed: {exc}") from exc
 
     return {
+        "processed_sources": processed_sources,
+        "failed_sources": failed_sources,
+        "total_fetched": len(raw_items),
+        "total_filtered": filtered_count,
+        "total_classified": classified_count,
+        "total_persisted": persisted_count,
         "fetched": len(raw_items),
         "filtered": len(passed_items),
         "classified": classified_count,

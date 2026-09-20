@@ -1,6 +1,8 @@
-from datetime import date, datetime
+from datetime import datetime
 
 from pydantic import BaseModel
+
+from app.models.recommendation import RecommendationsResponse
 
 
 class HealthResponse(BaseModel):
@@ -14,25 +16,6 @@ class ServiceTestResponse(BaseModel):
     details: dict | None = None
 
 
-class OpportunityCard(BaseModel):
-    id: str
-    title: str
-    organization: str
-    opportunity_type: str
-    description: str
-    skills: list[str] = []
-    location: str | None = None
-    paid: bool | None = None
-    deadline: date | None = None
-    apply_url: str | None = None
-    explanation: str | None = None
-
-
-class RecommendationsResponse(BaseModel):
-    student_id: str
-    opportunities: list[OpportunityCard]
-
-
 class SwipeResponse(BaseModel):
     id: str
     student_id: str
@@ -44,3 +27,30 @@ class SwipeResponse(BaseModel):
 class ErrorResponse(BaseModel):
     error: str
     detail: str | None = None
+
+
+from app.models.opportunity import Opportunity
+
+class SavedOpportunitiesResponse(BaseModel):
+    student_id: str
+    opportunities: list[Opportunity]
+
+
+class SavedOpportunityResponse(BaseModel):
+    student_id: str
+    opportunity_id: str
+
+
+class StatusResponse(BaseModel):
+    status: str
+
+__all__ = [
+    "HealthResponse",
+    "ServiceTestResponse",
+    "SwipeResponse",
+    "ErrorResponse",
+    "RecommendationsResponse",
+    "SavedOpportunitiesResponse",
+    "SavedOpportunityResponse",
+    "StatusResponse",
+]

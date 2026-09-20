@@ -226,20 +226,14 @@ class ExploreViewController: UIViewController, OpportunityCardDelegate {
                 await MainActor.run {
                     self.isLoadingBatch = false
                     self.loadingIndicator.stopAnimating()
-                    
-                    var opps = batch.opportunities
-                    if opps.isEmpty {
-                        opps = OpportunityCard.mockDeck
-                    }
-                    self.batchOpportunities = Array(opps.prefix(self.batchSize))
+                    self.batchOpportunities = Array(batch.opportunities.prefix(self.batchSize))
                     self.renderCards()
                 }
             } catch {
                 await MainActor.run {
                     self.isLoadingBatch = false
                     self.loadingIndicator.stopAnimating()
-                    let opps = OpportunityCard.mockDeck
-                    self.batchOpportunities = Array(opps.prefix(self.batchSize))
+                    self.batchOpportunities = []
                     self.renderCards()
                 }
             }
@@ -250,7 +244,6 @@ class ExploreViewController: UIViewController, OpportunityCardDelegate {
     private func renderCards() {
         cardViews.forEach { $0.removeFromSuperview() }
         cardViews.removeAll()
-        
         updateCountLabel()
         
         guard !batchOpportunities.isEmpty else {
@@ -285,6 +278,48 @@ class ExploreViewController: UIViewController, OpportunityCardDelegate {
             
             cardViews.append(card)
         }
+    }
+
+    private func loadRecommendations() {
+        showEmptyState(
+            title: "Loading recommendations…",
+            subtitle: "Fetching personalized opportunities."
+        )
+
+        Task { [weak self] in
+            guard let self else { return }
+
+            do {
+                let response = try await APIService.shared.getRecommendations(limit: 10)
+                self.opportunities = response.opportunities.map(\.card)
+
+                if self.opportunities.isEmpty {
+                    self.showEmptyState(
+                        title: "No recommendations yet",
+                        subtitle: "Refresh to check for new opportunities."
+                    )
+                } else {
+                    self.renderCards()
+                }
+            } catch {
+                self.opportunities = []
+                self.showEmptyState(
+                    title: "Unable to load recommendations",
+                    subtitle: error.localizedDescription
+                )
+            }
+        }
+    }
+
+    private func showEmptyState(title: String, subtitle: String) {
+        cardViews.forEach { $0.removeFromSuperview() }
+        cardViews.removeAll()
+        emptyTitleLabel.text = title
+        emptySubtitleLabel.text = subtitle
+        emptyStateView.isHidden = false
+        actionButtonsStack.isHidden = true
+        cardDeckContainer.isHidden = true
+        countLabel.text = "0 opportunities"
     }
     
     private func updateCountLabel() {
@@ -448,6 +483,36 @@ class ExploreViewController: UIViewController, OpportunityCardDelegate {
         if batchOpportunities.isEmpty && cardViews.isEmpty {
             updateBatchCompleteStateIfNeeded()
         }
+    }
+    
+    // MARK: - Button Actions
+    @objc private func didTapPass() {
+        guard let topCard = cardViews.first else { return }
+        topCard.swipeLeft()
+    }
+    
+    @objc private func didTapApply() {
+        guard let topCard = cardViews.first else { return }
+        guard let rawURL = topCard.opportunity.applyUrl,
+              let url = URL(string: rawURL),
+              ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+              url.host != nil else {
+            cardDidTapInfo(topCard)
+            return
+        }
+        UIApplication.shared.open(url)
+    }
+    
+    @objc private func didTapStar() {
+        guard let topCard = cardViews.first else { return }
+        let generator = UINotificationFeedbackGenerator()
+        generator.notificationOccurred(.success)
+        topCard.swipeRight()
+    }
+    
+    @objc private func didTapInfo() {
+        guard let topCard = cardViews.first else { return }
+        cardDidTapInfo(topCard)
     }
     
     // MARK: - Actions

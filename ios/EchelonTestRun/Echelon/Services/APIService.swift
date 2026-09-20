@@ -1,4 +1,37 @@
 import Foundation
+import FirebaseAuth
+
+public enum APIError: LocalizedError {
+    case invalidURL
+    case invalidResponse
+    case authenticationRequired
+    case profileRequired
+    case requestFailed(statusCode: Int, message: String)
+    case serverError(statusCode: Int)
+    case decodingError(Error?)
+
+    public var errorDescription: String? {
+        switch self {
+        case .invalidURL:
+            return "The requested URL is invalid."
+        case .invalidResponse:
+            return "Received invalid server response."
+        case .authenticationRequired:
+            return "Sign in with Firebase before loading recommendations."
+        case .profileRequired:
+            return "Complete onboarding before loading recommendations."
+        case .requestFailed(let code, let message):
+            return "Request failed (\(code)): \(message)"
+        case .serverError(let code):
+            return "Server error with status code \(code)."
+        case .decodingError(let error):
+            if let error = error {
+                return "Failed to decode response: \(error.localizedDescription)"
+            }
+            return "Failed to decode response."
+        }
+    }
+}
 
 public final class APIService {
     public static let shared = APIService()
@@ -25,79 +58,85 @@ public final class APIService {
         return try JSONDecoder().decode(HealthResponse.self, from: data)
     }
     
-    // MARK: - Opportunity Batch Recommendations (Batches of 7)
-    public func getOpportunityBatch(studentId: String, limit: Int = 7, isRefresh: Bool = false) async throws -> OpportunityBatch {
-        if isRefresh {
-            MatchStore.shared.recordManualRefresh()
-        }
-        
+    // MARK: - Recommendations (Databricks + Gemini Pipeline)
+    public func getRecommendations(limit: Int = 10) async throws -> RecommendationsResponse {
         var components = URLComponents(string: "\(baseURL)/api/opportunities/recommendations")
         components?.queryItems = [
             URLQueryItem(name: "limit", value: "\(limit)")
         ]
-        
         guard let url = components?.url else {
             throw APIError.invalidURL
         }
         
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        request.timeoutInterval = 8.0
+        request.timeoutInterval = 12.0
         await applyAuthHeader(to: &request)
         
+        let (data, response) = try await session.data(for: request)
+        
+        guard let httpRes = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        
+        if httpRes.statusCode == 401 {
+            throw APIError.authenticationRequired
+        } else if httpRes.statusCode == 404 {
+            throw APIError.profileRequired
+        } else if !(200...299).contains(httpRes.statusCode) {
+            let errorMsg = String(data: data, encoding: .utf8) ?? "Unknown Error"
+            throw APIError.requestFailed(statusCode: httpRes.statusCode, message: errorMsg)
+        }
+        
         do {
-            let (data, response) = try await session.data(for: request)
-            try validateResponse(response)
-            
-            // 1. Attempt to decode backend RecommendationsResponse (nested opportunity item format)
-            if let recResponse = try? JSONDecoder().decode(BackendRecommendationsResponse.self, from: data) {
-                let mappedCards = recResponse.opportunities.compactMap { item -> OpportunityCard? in
-                    guard var card = item.opportunity else { return nil }
-                    if let score = item.score {
-                        card.matchPercentage = score
-                    }
-                    if let reason = item.matchReason {
-                        card.explanation = reason
-                    }
-                    return card
-                }
-                let sliced = Array(mappedCards.prefix(limit))
-                return OpportunityBatch(
-                    opportunities: sliced,
-                    canRefresh: MatchStore.shared.canRefresh,
-                    refreshesRemaining: MatchStore.shared.refreshesRemaining,
-                    nextRefreshAvailableAt: MatchStore.shared.nextRefreshAvailableAt
-                )
-            }
-            
-            // 2. Attempt to decode OpportunityBatch direct format
-            if let batch = try? JSONDecoder().decode(OpportunityBatch.self, from: data) {
-                MatchStore.shared.updateRateLimit(
-                    canRefresh: batch.canRefresh,
-                    refreshesRemaining: batch.refreshesRemaining,
-                    nextRefreshAvailableAt: batch.nextRefreshAvailableAt
-                )
-                return batch
-            }
-            
-            // 3. Attempt to decode raw array of OpportunityCard
-            let cards = try JSONDecoder().decode([OpportunityCard].self, from: data)
-            let currentOpps = Array(cards.prefix(limit))
+            return try JSONDecoder().decode(RecommendationsResponse.self, from: data)
+        } catch {
+            throw APIError.decodingError(error)
+        }
+    }
+    
+    // MARK: - Opportunity Batch Recommendations (Batches of 7)
+    public func getOpportunityBatch(studentId: String, limit: Int = 7, isRefresh: Bool = false) async throws -> OpportunityBatch {
+        if isRefresh {
+            MatchStore.shared.recordManualRefresh()
+        }
+        
+        do {
+            let recResponse = try await getRecommendations(limit: limit)
+            let cards = recResponse.opportunities.map { $0.card }
             return OpportunityBatch(
-                opportunities: currentOpps,
+                opportunities: Array(cards.prefix(limit)),
                 canRefresh: MatchStore.shared.canRefresh,
                 refreshesRemaining: MatchStore.shared.refreshesRemaining,
                 nextRefreshAvailableAt: MatchStore.shared.nextRefreshAvailableAt
             )
         } catch {
-            // Offline / local mock fallback
-            let fallbackDeck = Array(OpportunityCard.mockDeck.prefix(limit))
-            return OpportunityBatch(
-                opportunities: fallbackDeck,
-                canRefresh: MatchStore.shared.canRefresh,
-                refreshesRemaining: MatchStore.shared.refreshesRemaining,
-                nextRefreshAvailableAt: MatchStore.shared.nextRefreshAvailableAt
-            )
+            // Direct fetch attempt if direct OpportunityBatch returned
+            guard var components = URLComponents(string: "\(baseURL)/api/opportunities/recommendations") else {
+                throw error
+            }
+            components.queryItems = [URLQueryItem(name: "limit", value: "\(limit)")]
+            guard let url = components.url else { throw error }
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            request.timeoutInterval = 10.0
+            await applyAuthHeader(to: &request)
+            
+            let (data, response) = try await session.data(for: request)
+            try validateResponse(response)
+            
+            if let batch = try? JSONDecoder().decode(OpportunityBatch.self, from: data) {
+                return batch
+            }
+            if let directCards = try? JSONDecoder().decode([OpportunityCard].self, from: data) {
+                return OpportunityBatch(
+                    opportunities: Array(directCards.prefix(limit)),
+                    canRefresh: MatchStore.shared.canRefresh,
+                    refreshesRemaining: MatchStore.shared.refreshesRemaining,
+                    nextRefreshAvailableAt: MatchStore.shared.nextRefreshAvailableAt
+                )
+            }
+            throw error
         }
     }
     
@@ -129,6 +168,56 @@ public final class APIService {
         return try JSONDecoder().decode(SwipeResponse.self, from: data)
     }
     
+    // MARK: - Saved Opportunities (Databricks)
+    public func getSavedOpportunities() async throws -> [OpportunityCard] {
+        guard let url = URL(string: "\(baseURL)/api/saved") else {
+            throw APIError.invalidURL
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 8.0
+        await applyAuthHeader(to: &request)
+        
+        let (data, response) = try await session.data(for: request)
+        try validateResponse(response)
+        
+        struct SavedResponse: Decodable {
+            let student_id: String?
+            let opportunities: [Opportunity]
+        }
+        let saved = try JSONDecoder().decode(SavedResponse.self, from: data)
+        return saved.opportunities.map { opp in
+            OpportunityCard(
+                id: opp.id,
+                title: opp.title,
+                organization: opp.organization,
+                opportunityType: opp.opportunityType,
+                description: opp.description,
+                fullDescription: opp.description,
+                skills: opp.skills,
+                preferredSkills: opp.interests,
+                qualifications: opp.eligibility,
+                responsibilities: nil,
+                coursework: opp.majors,
+                location: opp.location,
+                workMode: opp.remoteStatus,
+                paid: opp.compensation != nil,
+                deadline: opp.deadline,
+                applyUrl: opp.applyUrl ?? opp.sourceUrl,
+                explanation: nil,
+                compensation: opp.compensation,
+                duration: opp.timeCommitment,
+                startDate: nil,
+                matchPercentage: nil,
+                matchAnalysis: nil,
+                imageUrl: nil,
+                organizationLogoUrl: nil,
+                companyLogoName: nil,
+                accentHex: nil
+            )
+        }
+    }
+    
     // MARK: - Opportunity Application Submission
     public func applyOpportunity(studentId: String, opportunityId: String) async throws -> ApplyResponse {
         guard let url = URL(string: "\(baseURL)/api/opportunities/\(opportunityId)/apply") else {
@@ -150,13 +239,36 @@ public final class APIService {
         return try JSONDecoder().decode(ApplyResponse.self, from: data)
     }
     
-    // MARK: - AI Match Chatbot
+    // MARK: - AI Match Chatbot (Calls Echelon Agent Service)
     public func sendChatMessage(
         opportunityId: String,
         studentId: String,
         message: String,
         context: OpportunityChatContext
     ) async throws -> String {
+        // Backend agent conversational endpoint
+        if let agentURL = URL(string: "\(baseURL)/api/agent/chat") {
+            var request = URLRequest(url: agentURL)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.timeoutInterval = 15.0
+            await applyAuthHeader(to: &request)
+            
+            let payload: [String: Any] = [
+                "message": message
+            ]
+            if let bodyData = try? JSONSerialization.data(withJSONObject: payload) {
+                request.httpBody = bodyData
+                if let (data, resp) = try? await session.data(for: request),
+                   let http = resp as? HTTPURLResponse, (200...299).contains(http.statusCode),
+                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let reply = json["reply"] as? String, !reply.isEmpty {
+                    return reply
+                }
+            }
+        }
+        
+        // Fallback to legacy chat route if deployed
         if let chatURL = URL(string: "\(baseURL)/api/chat") {
             var request = URLRequest(url: chatURL)
             request.httpMethod = "POST"
@@ -182,39 +294,7 @@ public final class APIService {
             }
         }
         
-        // Contextual AI fallback
-        try await Task.sleep(nanoseconds: 600_000_000)
-        return generateLocalChatResponse(message: message, context: context)
-    }
-    
-    private func generateLocalChatResponse(message: String, context: OpportunityChatContext) -> String {
-        let msg = message.lowercased()
-        let oppName = context.opportunityTitle
-        let orgName = context.organization
-        
-        if msg.contains("tell me more") || msg.contains("what is this") || msg.contains("overview") {
-            return "\(oppName) at \(orgName) is a premier hands-on role. You'll gain deep industry exposure, collaborate with senior mentors on production systems, and sharpen your technical skills in a high-impact environment."
-        } else if msg.contains("why am i a good match") || msg.contains("match") || msg.contains("fit") {
-            if let analysis = context.matchAnalysis {
-                var details: [String] = []
-                if let skills = analysis.skillsMatch { details.append("Skills match: \(skills)%") }
-                if let course = analysis.courseworkMatch { details.append("Coursework alignment: \(course)%") }
-                if let exp = analysis.experienceMatch { details.append("Experience relevance: \(exp)%") }
-                let breakdown = details.joined(separator: ", ")
-                let explanation = analysis.explanation ?? "Your technical background strongly complements the core requirements."
-                return "You have a \(analysis.overallMatch ?? 88)% match with \(orgName)! \(breakdown.isEmpty ? "" : "(\(breakdown)). ") \(explanation)"
-            } else {
-                return "Based on your major, programming skills, and declared interests, you possess strong prerequisites for \(oppName) at \(orgName)."
-            }
-        } else if msg.contains("related") || msg.contains("similar") || msg.contains("other opportunities") {
-            return "Based on your interest in \(oppName), you might also explore upcoming openings in distributed systems, machine learning engineering, and autonomous robotics in our Discover feed."
-        } else if msg.contains("deadline") || msg.contains("when") {
-            return "Please review the deadline listed on the opportunity card. We encourage applying at least 1–2 weeks before the deadline for early consideration."
-        } else if msg.contains("interview") || msg.contains("prep") {
-            return "For \(oppName) at \(orgName), focus on core data structures, algorithms, and practical projects mentioned on your resume. Be ready to discuss technical trade-offs in depth."
-        } else {
-            return "Regarding \(oppName) at \(orgName): You meet the primary criteria. Let me know if you would like tips on tailoring your resume or preparing for interview topics!"
-        }
+        throw APIError.requestFailed(statusCode: 500, message: "Agent chat service unavailable.")
     }
     
     // MARK: - Resume Parsing (PDF Upload to /api/profile/parse)
@@ -227,7 +307,7 @@ public final class APIService {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 20.0
+        request.timeoutInterval = 30.0
         await applyAuthHeader(to: &request)
         
         var body = Data()
@@ -238,28 +318,9 @@ public final class APIService {
         body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
         request.httpBody = body
         
-        do {
-            let (data, response) = try await session.data(for: request)
-            try validateResponse(response)
-            return try JSONDecoder().decode(ParsedResumeData.self, from: data)
-        } catch {
-            // Intelligent local fallback when backend is unavailable
-            try? await Task.sleep(nanoseconds: 600_000_000)
-            return ParsedResumeData(
-                name: "Alex Chen",
-                email: "alex.chen@vt.edu",
-                phoneNumber: "+1 (540) 555-0199",
-                university: "Virginia Tech",
-                major: "Computer Science",
-                minor: "Mathematics",
-                degree: "Bachelor of Science",
-                graduationYear: 2027,
-                gpa: 3.92,
-                skills: ["Python", "Swift", "C++", "PyTorch", "Docker", "AWS", "SQL", "Git"],
-                coursework: ["Data Structures", "Algorithms", "Operating Systems", "Cloud Computing", "Machine Learning"],
-                experience: ["Autonomy Software Intern @ YC Startup", "Undergraduate ML Researcher @ VT AI Lab"]
-            )
-        }
+        let (data, response) = try await session.data(for: request)
+        try validateResponse(response)
+        return try JSONDecoder().decode(ParsedResumeData.self, from: data)
     }
     
     // MARK: - Fetch Current Profile from Backend / Databricks
@@ -334,45 +395,6 @@ public final class APIService {
         }
         guard (200...299).contains(httpResponse.statusCode) else {
             throw APIError.serverError(statusCode: httpResponse.statusCode)
-        }
-    }
-}
-
-// MARK: - Helper Decoding Wrappers for Backend Models
-private struct BackendRecommendationsResponse: Decodable {
-    let studentId: String?
-    let opportunities: [BackendRecommendationItem]
-    
-    enum CodingKeys: String, CodingKey {
-        case studentId = "student_id"
-        case opportunities
-    }
-}
-
-private struct BackendRecommendationItem: Decodable {
-    let opportunity: OpportunityCard?
-    let score: Int?
-    let matchReason: String?
-    
-    enum CodingKeys: String, CodingKey {
-        case opportunity
-        case score
-        case matchReason = "match_reason"
-    }
-}
-
-public enum APIError: LocalizedError {
-    case invalidURL
-    case invalidResponse
-    case serverError(statusCode: Int)
-    case decodingError
-    
-    public var errorDescription: String? {
-        switch self {
-        case .invalidURL: return "The URL provided was invalid."
-        case .invalidResponse: return "Received invalid server response."
-        case .serverError(let code): return "Server error with status code \(code)."
-        case .decodingError: return "Failed to decode response."
         }
     }
 }
