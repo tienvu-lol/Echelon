@@ -4,6 +4,7 @@ class CircularProgressView: UIView {
     private let trackLayer = CAShapeLayer()
     private let progressLayer = CAShapeLayer()
     private let percentageLabel = UILabel()
+    private var blurView: UIVisualEffectView?
     
     var progressColor: UIColor = AppTheme.Colors.green {
         didSet {
@@ -35,9 +36,39 @@ class CircularProgressView: UIView {
     }
     
     private func setup() {
-        backgroundColor = UIColor.black.withAlphaComponent(0.4)
+        backgroundColor = .clear
         layer.cornerRadius = AppTheme.Radii.r22
+        layer.cornerCurve = .continuous
+        layer.borderWidth = 1.0
+        layer.borderColor = UIColor.white.withAlphaComponent(0.18).cgColor
         layer.masksToBounds = true
+        
+        // Apple Liquid Glass background
+        let blur = UIVisualEffectView(effect: AppTheme.Effects.makeGlassEffect(style: .systemUltraThinMaterialDark))
+        blur.translatesAutoresizingMaskIntoConstraints = false
+        blur.isUserInteractionEnabled = false
+        blur.layer.cornerRadius = AppTheme.Radii.r22
+        blur.layer.cornerCurve = .continuous
+        blur.clipsToBounds = true
+        insertSubview(blur, at: 0)
+        self.blurView = blur
+        
+        let tint = UIView()
+        tint.translatesAutoresizingMaskIntoConstraints = false
+        tint.backgroundColor = UIColor(white: 0.08, alpha: 0.35)
+        blur.contentView.addSubview(tint)
+        
+        NSLayoutConstraint.activate([
+            blur.topAnchor.constraint(equalTo: topAnchor),
+            blur.bottomAnchor.constraint(equalTo: bottomAnchor),
+            blur.leadingAnchor.constraint(equalTo: leadingAnchor),
+            blur.trailingAnchor.constraint(equalTo: trailingAnchor),
+            
+            tint.topAnchor.constraint(equalTo: blur.contentView.topAnchor),
+            tint.bottomAnchor.constraint(equalTo: blur.contentView.bottomAnchor),
+            tint.leadingAnchor.constraint(equalTo: blur.contentView.leadingAnchor),
+            tint.trailingAnchor.constraint(equalTo: blur.contentView.trailingAnchor)
+        ])
         
         // Track layer
         trackLayer.fillColor = UIColor.clear.cgColor
@@ -69,7 +100,9 @@ class CircularProgressView: UIView {
     
     override func layoutSubviews() {
         super.layoutSubviews()
-        layer.cornerRadius = bounds.width / 2
+        let radiusCorner = bounds.width / 2
+        layer.cornerRadius = radiusCorner
+        blurView?.layer.cornerRadius = radiusCorner
         
         let center = CGPoint(x: bounds.midX, y: bounds.midY)
         let radius = (min(bounds.width, bounds.height) - 6) / 2

@@ -20,115 +20,62 @@ public struct OpportunityDetailView: View {
     }
     
     public var body: some View {
-        ScrollViewReader { scrollProxy in
-            ScrollView(showsIndicators: true) {
-                VStack(spacing: 0) {
-                    // 1. Large Hero Header Section
-                    heroSection
-                    
-                    // 2. Main Article Content
-                    VStack(alignment: .leading, spacing: 20) {
-                        // Quick Specs Grid
-                        specsGrid
+        GeometryReader { geometry in
+            let contentWidth = geometry.size.width
+            ScrollViewReader { scrollProxy in
+                ScrollView(showsIndicators: true) {
+                    VStack(spacing: 0) {
+                        // 1. Large Hero Header Section with Apple Liquid Glass Controls
+                        heroSection(width: contentWidth)
                         
-                        // Overview & Full Description
-                        descriptionSection
-                        
-                        // Responsibilities
-                        if let responsibilities = opportunity.responsibilities, !responsibilities.isEmpty {
-                            listSection(title: "Key Responsibilities", icon: "checklist", items: responsibilities)
+                        // 2. Main Article Content
+                        VStack(alignment: .leading, spacing: 20) {
+                            // Quick Specs Grid
+                            specsGrid
+                            
+                            // Overview & Full Description
+                            descriptionSection
+                            
+                            // Responsibilities
+                            if let responsibilities = opportunity.responsibilities, !responsibilities.isEmpty {
+                                listSection(title: "Key Responsibilities", icon: "checklist", items: responsibilities)
+                            }
+                            
+                            // Qualifications
+                            if let qualifications = opportunity.qualifications, !qualifications.isEmpty {
+                                listSection(title: "Qualifications", icon: "checkmark.seal.fill", items: qualifications)
+                            }
+                            
+                            // Required & Preferred Skills
+                            skillsSection
+                            
+                            // Relevant Coursework
+                            if let coursework = opportunity.coursework, !coursework.isEmpty {
+                                courseworkSection(coursework: coursework)
+                            }
+                            
+                            Divider()
+                                .background(AppTheme.SwiftUIColors.border)
+                                .padding(.vertical, 8)
+                            
+                            // 3. AI Match & Chatbot Section
+                            chatbotSection
                         }
-                        
-                        // Qualifications
-                        if let qualifications = opportunity.qualifications, !qualifications.isEmpty {
-                            listSection(title: "Qualifications", icon: "checkmark.seal.fill", items: qualifications)
-                        }
-                        
-                        // Required & Preferred Skills
-                        skillsSection
-                        
-                        // Relevant Coursework
-                        if let coursework = opportunity.coursework, !coursework.isEmpty {
-                            courseworkSection(coursework: coursework)
-                        }
-                        
-                        Divider()
-                            .background(AppTheme.SwiftUIColors.border)
-                            .padding(.vertical, 8)
-                        
-                        // 3. AI Match & Chatbot Section
-                        chatbotSection
+                        .padding(.horizontal, 20)
+                        .padding(.top, 18)
+                        .padding(.bottom, 80)
+                        .frame(width: contentWidth, alignment: .leading)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 18)
-                    .padding(.bottom, 80)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(width: contentWidth)
                 }
-                .frame(maxWidth: .infinity)
-            }
-            .onChange(of: messages.count) { _ in
-                withAnimation {
-                    scrollProxy.scrollTo("chatBottomAnchor", anchor: .bottom)
+                .onChange(of: messages.count) { _ in
+                    withAnimation {
+                        scrollProxy.scrollTo("chatBottomAnchor", anchor: .bottom)
+                    }
                 }
             }
         }
         .background(AppTheme.SwiftUIColors.background.ignoresSafeArea())
-        .overlay(alignment: .top) {
-            // Top Bar Floating Controls - Only takes necessary space, allows full scroll underneath
-            HStack {
-                Button(action: {
-                    dismiss()
-                }) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(.white)
-                        .frame(width: 38, height: 38)
-                        .background(Color.black.opacity(0.65))
-                        .clipShape(Circle())
-                        .overlay(Circle().stroke(Color.white.opacity(0.2), lineWidth: 1))
-                }
-                
-                Spacer()
-                
-                // Apply Action Pill
-                if isApplied {
-                    HStack(spacing: 6) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(AppTheme.SwiftUIColors.green)
-                        Text("Applied")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundColor(AppTheme.SwiftUIColors.green)
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(AppTheme.SwiftUIColors.green.opacity(0.18))
-                    .clipShape(Capsule())
-                    .overlay(Capsule().stroke(AppTheme.SwiftUIColors.green.opacity(0.4), lineWidth: 1))
-                } else {
-                    Button(action: applyAction) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "arrow.up.right.circle.fill")
-                            Text("Apply Now")
-                                .font(.system(size: 13, weight: .bold))
-                        }
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(
-                            LinearGradient(
-                                colors: [AppTheme.SwiftUIColors.blue, AppTheme.SwiftUIColors.cyan],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .clipShape(Capsule())
-                        .shadow(color: AppTheme.SwiftUIColors.blue.opacity(0.5), radius: 8, x: 0, y: 3)
-                    }
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 54)
-        }
         .overlay(alignment: .bottom) {
             if showApplySuccessToast {
                 HStack(spacing: 10) {
@@ -140,10 +87,10 @@ public struct OpportunityDetailView: View {
                 }
                 .padding(.horizontal, 18)
                 .padding(.vertical, 12)
-                .background(Color(hex: "#161D27").opacity(0.95))
+                .background(.ultraThinMaterial)
                 .clipShape(Capsule())
-                .overlay(Capsule().stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
-                .shadow(color: .black.opacity(0.4), radius: 12, x: 0, y: 4)
+                .overlay(Capsule().stroke(Color.white.opacity(0.22), lineWidth: 1))
+                .shadow(color: .black.opacity(0.35), radius: 14, x: 0, y: 4)
                 .padding(.bottom, 24)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
@@ -155,29 +102,90 @@ public struct OpportunityDetailView: View {
     }
     
     // MARK: - 1. Hero Header Section
-    private var heroSection: some View {
-        ZStack(alignment: .bottomLeading) {
+    private func heroSection(width: CGFloat) -> some View {
+        ZStack(alignment: .top) {
             // Background Image
             RemoteImageView(
                 urlString: opportunity.imageUrl,
                 fallbackSystemName: "building.2.crop.circle",
                 contentMode: .fill
             )
-            .frame(maxWidth: .infinity)
-            .frame(height: 290)
+            .frame(width: width, height: 320)
             .clipped()
             
             // Gradient Overlay for Readability
             LinearGradient(
                 stops: [
-                    .init(color: Color.black.opacity(0.5), location: 0.0),
-                    .init(color: Color.clear, location: 0.3),
-                    .init(color: AppTheme.SwiftUIColors.background.opacity(0.7), location: 0.65),
+                    .init(color: Color.black.opacity(0.60), location: 0.0),
+                    .init(color: Color.clear, location: 0.35),
+                    .init(color: AppTheme.SwiftUIColors.background.opacity(0.75), location: 0.72),
                     .init(color: AppTheme.SwiftUIColors.background, location: 1.0)
                 ],
                 startPoint: .top,
                 endPoint: .bottom
             )
+            .frame(width: width, height: 320)
+            
+            // Top Bar Controls: Apple Liquid Glass Floating Controls
+            HStack {
+                // Circular Frosted Glass Dismiss Button
+                Button(action: {
+                    dismiss()
+                }) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(width: 36, height: 36)
+                        .background(.ultraThinMaterial)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(Color.white.opacity(0.24), lineWidth: 1))
+                        .shadow(color: .black.opacity(0.25), radius: 6, x: 0, y: 2)
+                }
+                
+                Spacer()
+                
+                // Floating Liquid Glass Action Capsule (Share + Apply)
+                HStack(spacing: 12) {
+                    Button(action: shareAction) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.white)
+                    }
+                    
+                    Rectangle()
+                        .fill(Color.white.opacity(0.22))
+                        .frame(width: 1, height: 14)
+                    
+                    if isApplied {
+                        HStack(spacing: 5) {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 11, weight: .bold))
+                            Text("Applied")
+                                .font(.system(size: 13, weight: .bold))
+                        }
+                        .foregroundColor(AppTheme.SwiftUIColors.green)
+                    } else {
+                        Button(action: applyAction) {
+                            HStack(spacing: 5) {
+                                Text("Apply")
+                                    .font(.system(size: 13, weight: .bold))
+                                Image(systemName: "arrow.up.right")
+                                    .font(.system(size: 11, weight: .bold))
+                            }
+                            .foregroundColor(.white)
+                        }
+                    }
+                }
+                .padding(.horizontal, 15)
+                .padding(.vertical, 8)
+                .background(.ultraThinMaterial)
+                .clipShape(Capsule())
+                .overlay(Capsule().stroke(Color.white.opacity(0.24), lineWidth: 1))
+                .shadow(color: .black.opacity(0.25), radius: 8, x: 0, y: 2)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
+            .frame(width: width)
             
             // Hero Title & Organization Overlay
             VStack(alignment: .leading, spacing: 8) {
@@ -231,7 +239,7 @@ public struct OpportunityDetailView: View {
                     if let logoUrl = opportunity.organizationLogoUrl, !logoUrl.isEmpty {
                         RemoteImageView(urlString: logoUrl, fallbackSystemName: "building.2.fill", contentMode: .fit)
                             .frame(width: 24, height: 24)
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     } else {
                         Image(systemName: opportunity.companyLogoName ?? "shield.lefthalf.filled")
                             .font(.system(size: 16))
@@ -244,15 +252,24 @@ public struct OpportunityDetailView: View {
                         .lineLimit(1)
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 20)
             .padding(.bottom, 12)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(width: width, alignment: .bottomLeading)
+            .frame(maxHeight: .infinity, alignment: .bottomLeading)
         }
-        .frame(maxWidth: .infinity)
+        .frame(width: width, height: 320)
         .clipped()
+        .gesture(
+            DragGesture(minimumDistance: 25)
+                .onEnded { value in
+                    if value.translation.height > 60 && abs(value.translation.width) < 100 {
+                        dismiss()
+                    }
+                }
+        )
     }
     
-    // MARK: - Specs Grid
+    // MARK: - Specs Grid (Apple System Material Tiles)
     @ViewBuilder
     private var specsGrid: some View {
         LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
@@ -281,8 +298,8 @@ public struct OpportunityDetailView: View {
                 .font(.system(size: 14))
                 .foregroundColor(AppTheme.SwiftUIColors.cyan)
                 .frame(width: 26, height: 26)
-                .background(AppTheme.SwiftUIColors.cyan.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 7))
+                .background(AppTheme.SwiftUIColors.cyan.opacity(0.14))
+                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
             
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
@@ -298,12 +315,15 @@ public struct OpportunityDetailView: View {
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AppTheme.SwiftUIColors.glass)
-        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radii.r16))
-        .overlay(RoundedRectangle(cornerRadius: AppTheme.Radii.r16).stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radii.r16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: AppTheme.Radii.r16, style: .continuous)
+                .stroke(AppTheme.SwiftUIColors.border, lineWidth: 1)
+        )
     }
     
-    // MARK: - Description Section
+    // MARK: - Description Section (Apple Liquid Glass)
     private var descriptionSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("About the Role")
@@ -319,9 +339,7 @@ public struct OpportunityDetailView: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AppTheme.SwiftUIColors.glass)
-        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radii.r18))
-        .overlay(RoundedRectangle(cornerRadius: AppTheme.Radii.r18).stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
+        .liquidGlass(cornerRadius: AppTheme.Radii.r20)
     }
     
     // MARK: - List Section (Responsibilities / Qualifications)
@@ -353,9 +371,7 @@ public struct OpportunityDetailView: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AppTheme.SwiftUIColors.glass)
-        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radii.r18))
-        .overlay(RoundedRectangle(cornerRadius: AppTheme.Radii.r18).stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
+        .liquidGlass(cornerRadius: AppTheme.Radii.r20)
     }
     
     // MARK: - Skills Section
@@ -396,9 +412,7 @@ public struct OpportunityDetailView: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AppTheme.SwiftUIColors.glass)
-        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radii.r18))
-        .overlay(RoundedRectangle(cornerRadius: AppTheme.Radii.r18).stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
+        .liquidGlass(cornerRadius: AppTheme.Radii.r20)
     }
     
     private func skillPill(text: String, isPreferred: Bool) -> some View {
@@ -439,12 +453,10 @@ public struct OpportunityDetailView: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AppTheme.SwiftUIColors.glass)
-        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radii.r18))
-        .overlay(RoundedRectangle(cornerRadius: AppTheme.Radii.r18).stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
+        .liquidGlass(cornerRadius: AppTheme.Radii.r20)
     }
     
-    // MARK: - 3. AI Chatbot Section Decomposition
+    // MARK: - 3. AI Chatbot Section (Apple Liquid Glass)
     @ViewBuilder
     private var chatbotSection: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -470,9 +482,7 @@ public struct OpportunityDetailView: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AppTheme.SwiftUIColors.glass)
-        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radii.r22))
-        .overlay(RoundedRectangle(cornerRadius: AppTheme.Radii.r22).stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
+        .liquidGlass(cornerRadius: AppTheme.Radii.r22)
     }
     
     private var chatbotHeader: some View {
@@ -538,9 +548,12 @@ public struct OpportunityDetailView: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(hex: "#111722"))
-        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radii.r16))
-        .overlay(RoundedRectangle(cornerRadius: AppTheme.Radii.r16).stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radii.r16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: AppTheme.Radii.r16, style: .continuous)
+                .stroke(AppTheme.SwiftUIColors.border, lineWidth: 1)
+        )
     }
     
     private var suggestedQuestionsSection: some View {
@@ -569,7 +582,7 @@ public struct OpportunityDetailView: View {
                 .foregroundColor(AppTheme.SwiftUIColors.cyan)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 7)
-                .background(AppTheme.SwiftUIColors.cyan.opacity(0.12))
+                .background(AppTheme.SwiftUIColors.cyan.opacity(0.14))
                 .cornerRadius(16)
         }
     }
@@ -598,8 +611,9 @@ public struct OpportunityDetailView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(AppTheme.SwiftUIColors.glass)
+        .background(.ultraThinMaterial)
         .clipShape(Capsule())
+        .overlay(Capsule().stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
     }
     
     private func errorBanner(err: String) -> some View {
@@ -618,7 +632,7 @@ public struct OpportunityDetailView: View {
         }
         .padding(10)
         .background(AppTheme.SwiftUIColors.red.opacity(0.12))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
     
     private var chatInputBar: some View {
@@ -628,7 +642,7 @@ public struct OpportunityDetailView: View {
                 .foregroundColor(AppTheme.SwiftUIColors.textPrimary)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
-                .background(Color(hex: "#0E131E"))
+                .background(.ultraThinMaterial)
                 .clipShape(Capsule())
                 .overlay(Capsule().stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
                 .onSubmit {
@@ -658,6 +672,23 @@ public struct OpportunityDetailView: View {
     }
     
     // MARK: - Actions
+    private func shareAction() {
+        let text = "\(opportunity.title) at \(opportunity.organization)"
+        var items: [Any] = [text]
+        if let applyUrlStr = opportunity.applyUrl, let url = URL(string: applyUrlStr) {
+            items.append(url)
+        }
+        let av = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let rootVC = windowScene.windows.first?.rootViewController {
+            var topVC = rootVC
+            while let presented = topVC.presentedViewController {
+                topVC = presented
+            }
+            topVC.present(av, animated: true)
+        }
+    }
+    
     private func sendMessage(text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -667,7 +698,7 @@ public struct OpportunityDetailView: View {
         
         let userMsg = ChatMessage(sender: .user, text: trimmed)
         messages.append(userMsg)
-        matchStore.appendChatMessage(opportunityId: opportunity.id, message: userMsg)
+        matchStore.appendChatMessage(opportunityId: opportunity.id, message: userMsg, opportunity: opportunity)
         
         isSending = true
         
@@ -692,7 +723,7 @@ public struct OpportunityDetailView: View {
                     self.isSending = false
                     let aiMsg = ChatMessage(sender: .ai, text: response)
                     self.messages.append(aiMsg)
-                    self.matchStore.appendChatMessage(opportunityId: opportunity.id, message: aiMsg)
+                    self.matchStore.appendChatMessage(opportunityId: opportunity.id, message: aiMsg, opportunity: opportunity)
                 }
             } catch {
                 await MainActor.run {
@@ -757,7 +788,7 @@ public struct BreakdownProgressBar: View {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule()
-                        .fill(Color(hex: "#1E2738"))
+                        .fill(Color(white: 1.0, opacity: 0.12))
                         .frame(height: 5)
                     Capsule()
                         .fill(
@@ -775,7 +806,7 @@ public struct BreakdownProgressBar: View {
     }
 }
 
-// MARK: - Chat Bubble View
+// MARK: - Chat Bubble View (Frosted Glass & Vibrant Blue)
 public struct ChatBubbleView: View {
     public let msg: ChatMessage
     
@@ -793,13 +824,13 @@ public struct ChatBubbleView: View {
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
                     .background(AppTheme.SwiftUIColors.blue)
-                    .cornerRadius(16)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             } else {
                 Image(systemName: "sparkles")
                     .font(.system(size: 11))
                     .foregroundColor(AppTheme.SwiftUIColors.cyan)
                     .frame(width: 24, height: 24)
-                    .background(AppTheme.SwiftUIColors.cyan.opacity(0.15))
+                    .background(AppTheme.SwiftUIColors.cyan.opacity(0.18))
                     .clipShape(Circle())
                 
                 Text(msg.text)
@@ -807,15 +838,14 @@ public struct ChatBubbleView: View {
                     .foregroundColor(AppTheme.SwiftUIColors.textPrimary)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
-                    .background(Color(hex: "#1A2230"))
-                    .cornerRadius(16)
+                    .background(.ultraThinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 16)
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
                             .stroke(AppTheme.SwiftUIColors.border, lineWidth: 1)
                     )
                 Spacer()
             }
         }
-        .frame(maxWidth: .infinity)
     }
 }

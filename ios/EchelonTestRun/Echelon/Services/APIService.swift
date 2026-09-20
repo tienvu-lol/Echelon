@@ -157,7 +157,6 @@ public final class APIService {
         await applyAuthHeader(to: &request)
         
         let body: [String: Any] = [
-            "student_id": studentId,
             "opportunity_id": opportunityId,
             "direction": direction
         ]

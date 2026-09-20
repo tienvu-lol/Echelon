@@ -2,11 +2,11 @@ import UIKit
 import SwiftUI
 
 enum AppTheme {
-    // MARK: - Foundations: Colors
+    // MARK: - Foundations: Colors (Apple Developer UIKit Palette)
     enum Colors {
-        static let background = UIColor(hex: "#0A0D14")
-        static let glass = UIColor(hex: "#161D27")
-        static let border = UIColor(hex: "#262E3B")
+        static let background = UIColor(hex: "#080B11")
+        static let glass = UIColor(white: 0.12, alpha: 0.72)
+        static let border = UIColor(white: 1.0, alpha: 0.14)
         
         static let blue = UIColor(hex: "#0A84FF")
         static let green = UIColor(hex: "#30D158")
@@ -17,13 +17,13 @@ enum AppTheme {
         static let purple = UIColor(hex: "#BF5AF2")
         
         // Semantic aliases
-        static let textPrimary = UIColor(hex: "#FFFFFF")
-        static let textSecondary = UIColor(hex: "#8E9EAF")
-        static let textTertiary = UIColor(hex: "#5A677B")
+        static let textPrimary = UIColor(white: 1.0, alpha: 0.98)
+        static let textSecondary = UIColor(white: 1.0, alpha: 0.65)
+        static let textTertiary = UIColor(white: 1.0, alpha: 0.42)
         
-        static let cardBackground = UIColor(hex: "#151B26")
-        static let pillBackground = UIColor(hex: "#1A2230")
-        static let pillBorder = UIColor(hex: "#262E3B")
+        static let cardBackground = UIColor(hex: "#121721")
+        static let pillBackground = UIColor(white: 1.0, alpha: 0.08)
+        static let pillBorder = UIColor(white: 1.0, alpha: 0.14)
         static let greenGlow = UIColor(hex: "#30D158").withAlphaComponent(0.35)
         
         // Tags
@@ -35,8 +35,8 @@ enum AppTheme {
     // MARK: - SwiftUI Color Palette
     enum SwiftUIColors {
         static let background = Color(AppTheme.Colors.background)
-        static let glass = Color(AppTheme.Colors.glass)
-        static let border = Color(AppTheme.Colors.border)
+        static let glass = Color.white.opacity(0.08)
+        static let border = Color.white.opacity(0.14)
         static let blue = Color(AppTheme.Colors.blue)
         static let green = Color(AppTheme.Colors.green)
         static let red = Color(AppTheme.Colors.red)
@@ -44,12 +44,12 @@ enum AppTheme {
         static let cyan = Color(AppTheme.Colors.cyan)
         static let orange = Color(AppTheme.Colors.orange)
         static let purple = Color(AppTheme.Colors.purple)
-        static let textPrimary = Color(AppTheme.Colors.textPrimary)
-        static let textSecondary = Color(AppTheme.Colors.textSecondary)
-        static let textTertiary = Color(AppTheme.Colors.textTertiary)
-        static let cardBackground = Color(AppTheme.Colors.cardBackground)
-        static let pillBackground = Color(AppTheme.Colors.pillBackground)
-        static let pillBorder = Color(AppTheme.Colors.pillBorder)
+        static let textPrimary = Color.white.opacity(0.98)
+        static let textSecondary = Color.white.opacity(0.65)
+        static let textTertiary = Color.white.opacity(0.42)
+        static let cardBackground = Color(hex: "#121721")
+        static let pillBackground = Color.white.opacity(0.08)
+        static let pillBorder = Color.white.opacity(0.14)
     }
     
     // MARK: - Foundations: Typography (SF Pro)
@@ -121,30 +121,126 @@ enum AppTheme {
     }
     
     // MARK: - Foundations: Effects
-    // Echelon/Glass — inner highlight and soft drop shadow
+    // Apple UIKit Liquid Glass & System Materials
     enum Effects {
+        static func makeGlassEffect(style: UIBlurEffect.Style = .systemUltraThinMaterialDark) -> UIVisualEffect {
+            if let glassClass = NSClassFromString("UIGlassEffect") as? NSObject.Type,
+               let instance = glassClass.init() as? UIVisualEffect {
+                return instance
+            }
+            return UIBlurEffect(style: style)
+        }
+        
+        @discardableResult
         static func applyEchelonGlass(
             to view: UIView,
             cornerRadius: CGFloat = Radii.r26,
             innerHighlight: Bool = true,
-            softShadow: Bool = true
-        ) {
-            view.backgroundColor = Colors.glass.withAlphaComponent(0.88)
+            softShadow: Bool = true,
+            blurStyle: UIBlurEffect.Style = .systemUltraThinMaterialDark,
+            tintOpacity: CGFloat = 0.35
+        ) -> UIVisualEffectView {
+            view.backgroundColor = .clear
             view.layer.cornerRadius = cornerRadius
+            view.layer.cornerCurve = .continuous
+            
+            // Remove existing glass view if re-applying
+            view.viewWithTag(99901)?.removeFromSuperview()
+            
+            let blurEffect = makeGlassEffect(style: blurStyle)
+            let effectView = UIVisualEffectView(effect: blurEffect)
+            effectView.tag = 99901
+            effectView.translatesAutoresizingMaskIntoConstraints = false
+            effectView.layer.cornerRadius = cornerRadius
+            effectView.layer.cornerCurve = .continuous
+            effectView.clipsToBounds = true
+            effectView.isUserInteractionEnabled = false
+            
+            // Subtle dark dimming layer (per Apple Liquid Glass HIG guidance for contrast over rich photos)
+            let tintView = UIView()
+            tintView.translatesAutoresizingMaskIntoConstraints = false
+            tintView.backgroundColor = UIColor(white: 0.08, alpha: tintOpacity)
+            tintView.isUserInteractionEnabled = false
+            effectView.contentView.addSubview(tintView)
+            
+            NSLayoutConstraint.activate([
+                tintView.topAnchor.constraint(equalTo: effectView.contentView.topAnchor),
+                tintView.bottomAnchor.constraint(equalTo: effectView.contentView.bottomAnchor),
+                tintView.leadingAnchor.constraint(equalTo: effectView.contentView.leadingAnchor),
+                tintView.trailingAnchor.constraint(equalTo: effectView.contentView.trailingAnchor)
+            ])
+            
+            view.insertSubview(effectView, at: 0)
+            
+            NSLayoutConstraint.activate([
+                effectView.topAnchor.constraint(equalTo: view.topAnchor),
+                effectView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+                effectView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+                effectView.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+            ])
             
             if innerHighlight {
                 view.layer.borderWidth = 1.0
                 view.layer.borderColor = Colors.border.cgColor
+            } else {
+                view.layer.borderWidth = 0
             }
             
             if softShadow {
                 view.layer.shadowColor = UIColor.black.cgColor
-                view.layer.shadowOpacity = 0.35
+                view.layer.shadowOpacity = 0.32
                 view.layer.shadowOffset = CGSize(width: 0, height: 8)
-                view.layer.shadowRadius = 16
+                view.layer.shadowRadius = 18
                 view.layer.masksToBounds = false
+            } else {
+                view.layer.shadowOpacity = 0
             }
+            
+            return effectView
         }
+    }
+    
+    // MARK: - SwiftUI Liquid Glass Modifiers
+    struct LiquidGlassModifier: ViewModifier {
+        var cornerRadius: CGFloat = 20
+        var strokeColor: Color = Color.white.opacity(0.14)
+        var shadowRadius: CGFloat = 14
+        
+        func body(content: Content) -> some View {
+            content
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .stroke(strokeColor, lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.25), radius: shadowRadius, x: 0, y: 6)
+        }
+    }
+    
+    struct LiquidGlassPillModifier: ViewModifier {
+        var strokeColor: Color = Color.white.opacity(0.16)
+        var shadowRadius: CGFloat = 8
+        
+        func body(content: Content) -> some View {
+            content
+                .background(.ultraThinMaterial, in: Capsule())
+                .overlay(
+                    Capsule()
+                        .stroke(strokeColor, lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.2), radius: shadowRadius, x: 0, y: 3)
+        }
+    }
+}
+
+// MARK: - View Extension for Liquid Glass
+extension View {
+    func liquidGlass(cornerRadius: CGFloat = 20, strokeColor: Color = Color.white.opacity(0.14)) -> some View {
+        modifier(AppTheme.LiquidGlassModifier(cornerRadius: cornerRadius, strokeColor: strokeColor))
+    }
+    
+    func liquidGlassPill(strokeColor: Color = Color.white.opacity(0.16)) -> some View {
+        modifier(AppTheme.LiquidGlassPillModifier(strokeColor: strokeColor))
     }
 }
 

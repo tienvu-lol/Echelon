@@ -133,10 +133,26 @@ class ProfileViewController: UIViewController {
         titleLabel.textColor = AppTheme.Colors.textPrimary
         headerStack.addArrangedSubview(titleLabel)
         
-        // Settings Gear Icon
-        settingsButton.setImage(UIImage(systemName: "gearshape.fill"), for: .normal)
-        settingsButton.tintColor = AppTheme.Colors.textSecondary
+        // Floating Circular Glass Settings Button
+        var config = UIButton.Configuration.plain()
+        let symbolConfig = UIImage.SymbolConfiguration(pointSize: 14, weight: .semibold)
+        config.image = UIImage(systemName: "gearshape.fill", withConfiguration: symbolConfig)
+        config.baseForegroundColor = AppTheme.Colors.textPrimary
+        config.contentInsets = NSDirectionalEdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8)
+        settingsButton.configuration = config
+        settingsButton.layer.cornerRadius = 18
+        settingsButton.layer.cornerCurve = .continuous
+        settingsButton.backgroundColor = UIColor(white: 1.0, alpha: 0.10)
+        settingsButton.layer.borderWidth = 1.0
+        settingsButton.layer.borderColor = UIColor(white: 1.0, alpha: 0.15).cgColor
+        settingsButton.clipsToBounds = true
+        settingsButton.translatesAutoresizingMaskIntoConstraints = false
         settingsButton.addTarget(self, action: #selector(didTapSettings), for: .touchUpInside)
+        
+        NSLayoutConstraint.activate([
+            settingsButton.widthAnchor.constraint(equalToConstant: 36),
+            settingsButton.heightAnchor.constraint(equalToConstant: 36)
+        ])
         headerStack.addArrangedSubview(settingsButton)
     }
     
@@ -180,28 +196,10 @@ class ProfileViewController: UIViewController {
         headlineLabel.numberOfLines = 2
         infoStack.addArrangedSubview(headlineLabel)
         
-        // Star Rating + GPA Row
-        let ratingStack = UIStackView()
-        ratingStack.axis = .horizontal
-        ratingStack.spacing = 3
-        ratingStack.alignment = .center
-        
-        for i in 1...5 {
-            let star = UIImageView()
-            star.translatesAutoresizingMaskIntoConstraints = false
-            star.widthAnchor.constraint(equalToConstant: 13).isActive = true
-            star.heightAnchor.constraint(equalToConstant: 13).isActive = true
-            star.contentMode = .scaleAspectFit
-            star.tintColor = AppTheme.Colors.yellow
-            star.image = UIImage(systemName: i <= 4 ? "star.fill" : "star.leadinghalf.filled")
-            ratingStack.addArrangedSubview(star)
-        }
-        
+        // GPA Row
         gpaLabel.font = AppTheme.Typography.label
         gpaLabel.textColor = AppTheme.Colors.textSecondary
-        ratingStack.addArrangedSubview(gpaLabel)
-        
-        infoStack.addArrangedSubview(ratingStack)
+        infoStack.addArrangedSubview(gpaLabel)
         
         bioLabel.translatesAutoresizingMaskIntoConstraints = false
         bioLabel.font = AppTheme.Typography.description
@@ -227,11 +225,10 @@ class ProfileViewController: UIViewController {
             avatarInitialLabel.centerYAnchor.constraint(equalTo: avatarView.centerYAnchor),
             
             infoStack.topAnchor.constraint(equalTo: profileHeaderCard.topAnchor, constant: AppTheme.Spacing.s18),
-            infoStack.leadingAnchor.constraint(equalTo: avatarView.trailingAnchor, constant: AppTheme.Spacing.s14),
+            infoStack.leadingAnchor.constraint(equalTo: avatarView.trailingAnchor, constant: AppTheme.Spacing.s16),
             infoStack.trailingAnchor.constraint(equalTo: profileHeaderCard.trailingAnchor, constant: -AppTheme.Spacing.s18),
             
             bioTopPreferred,
-            bioLabel.topAnchor.constraint(greaterThanOrEqualTo: infoStack.bottomAnchor, constant: AppTheme.Spacing.s12),
             bioLabel.topAnchor.constraint(greaterThanOrEqualTo: avatarView.bottomAnchor, constant: AppTheme.Spacing.s12),
             bioLabel.leadingAnchor.constraint(equalTo: profileHeaderCard.leadingAnchor, constant: AppTheme.Spacing.s18),
             bioLabel.trailingAnchor.constraint(equalTo: profileHeaderCard.trailingAnchor, constant: -AppTheme.Spacing.s18),
@@ -241,17 +238,15 @@ class ProfileViewController: UIViewController {
     
     // MARK: - 2. Stats Row
     private func setupStatsRow() {
+        statsStack.translatesAutoresizingMaskIntoConstraints = false
         statsStack.axis = .horizontal
-        statsStack.spacing = AppTheme.Spacing.s10
         statsStack.distribution = .fillEqually
+        statsStack.spacing = AppTheme.Spacing.s12
         contentView.addArrangedSubview(statsStack)
         
-        let notAppliedCount = MatchStore.shared.notAppliedMatches.count
-        let appliedCount = MatchStore.shared.appliedMatches.count
-        
-        let card1 = makeStatCard(value: "\(notAppliedCount)", label: "Matches")
-        let card2 = makeStatCard(value: "\(appliedCount)", label: "Applied")
-        let card3 = makeStatCard(value: "3", label: "Interviews")
+        let card1 = makeStatCard(value: "94%", label: "Profile Strength")
+        let card2 = makeStatCard(value: "12", label: "Skills Matched")
+        let card3 = makeStatCard(value: "4", label: "Preferences Set")
         
         statsStack.addArrangedSubview(card1)
         statsStack.addArrangedSubview(card2)
@@ -294,23 +289,13 @@ class ProfileViewController: UIViewController {
         AppTheme.Effects.applyEchelonGlass(to: educationCard, cornerRadius: AppTheme.Radii.r22)
         contentView.addArrangedSubview(educationCard)
         
-        let title = UILabel()
-        title.translatesAutoresizingMaskIntoConstraints = false
-        title.text = "Education & Academics"
-        title.font = AppTheme.Typography.cardTitleBold
-        title.textColor = AppTheme.Colors.textPrimary
-        educationCard.addSubview(title)
-        
         educationStack.translatesAutoresizingMaskIntoConstraints = false
         educationStack.axis = .vertical
         educationStack.spacing = AppTheme.Spacing.s12
         educationCard.addSubview(educationStack)
         
         NSLayoutConstraint.activate([
-            title.topAnchor.constraint(equalTo: educationCard.topAnchor, constant: AppTheme.Spacing.s16),
-            title.leadingAnchor.constraint(equalTo: educationCard.leadingAnchor, constant: AppTheme.Spacing.s18),
-            
-            educationStack.topAnchor.constraint(equalTo: title.bottomAnchor, constant: AppTheme.Spacing.s14),
+            educationStack.topAnchor.constraint(equalTo: educationCard.topAnchor, constant: AppTheme.Spacing.s18),
             educationStack.leadingAnchor.constraint(equalTo: educationCard.leadingAnchor, constant: AppTheme.Spacing.s18),
             educationStack.trailingAnchor.constraint(equalTo: educationCard.trailingAnchor, constant: -AppTheme.Spacing.s18),
             educationStack.bottomAnchor.constraint(equalTo: educationCard.bottomAnchor, constant: -AppTheme.Spacing.s18)
@@ -324,7 +309,7 @@ class ProfileViewController: UIViewController {
         
         let title = UILabel()
         title.translatesAutoresizingMaskIntoConstraints = false
-        title.text = "Skills & Technologies"
+        title.text = "Skills & Expertise"
         title.font = AppTheme.Typography.cardTitleBold
         title.textColor = AppTheme.Colors.textPrimary
         skillsCard.addSubview(title)
@@ -336,7 +321,7 @@ class ProfileViewController: UIViewController {
             title.topAnchor.constraint(equalTo: skillsCard.topAnchor, constant: AppTheme.Spacing.s16),
             title.leadingAnchor.constraint(equalTo: skillsCard.leadingAnchor, constant: AppTheme.Spacing.s18),
             
-            skillsFlow.topAnchor.constraint(equalTo: title.bottomAnchor, constant: AppTheme.Spacing.s14),
+            skillsFlow.topAnchor.constraint(equalTo: title.bottomAnchor, constant: AppTheme.Spacing.s12),
             skillsFlow.leadingAnchor.constraint(equalTo: skillsCard.leadingAnchor, constant: AppTheme.Spacing.s18),
             skillsFlow.trailingAnchor.constraint(equalTo: skillsCard.trailingAnchor, constant: -AppTheme.Spacing.s18),
             skillsFlow.bottomAnchor.constraint(equalTo: skillsCard.bottomAnchor, constant: -AppTheme.Spacing.s18)
@@ -350,7 +335,7 @@ class ProfileViewController: UIViewController {
         
         let title = UILabel()
         title.translatesAutoresizingMaskIntoConstraints = false
-        title.text = "Preferences & Interests"
+        title.text = "Career Preferences"
         title.font = AppTheme.Typography.cardTitleBold
         title.textColor = AppTheme.Colors.textPrimary
         preferencesCard.addSubview(title)
@@ -364,7 +349,7 @@ class ProfileViewController: UIViewController {
             title.topAnchor.constraint(equalTo: preferencesCard.topAnchor, constant: AppTheme.Spacing.s16),
             title.leadingAnchor.constraint(equalTo: preferencesCard.leadingAnchor, constant: AppTheme.Spacing.s18),
             
-            preferencesStack.topAnchor.constraint(equalTo: title.bottomAnchor, constant: AppTheme.Spacing.s14),
+            preferencesStack.topAnchor.constraint(equalTo: title.bottomAnchor, constant: AppTheme.Spacing.s12),
             preferencesStack.leadingAnchor.constraint(equalTo: preferencesCard.leadingAnchor, constant: AppTheme.Spacing.s18),
             preferencesStack.trailingAnchor.constraint(equalTo: preferencesCard.trailingAnchor, constant: -AppTheme.Spacing.s18),
             preferencesStack.bottomAnchor.constraint(equalTo: preferencesCard.bottomAnchor, constant: -AppTheme.Spacing.s18)
@@ -419,24 +404,27 @@ class ProfileViewController: UIViewController {
         mainStack.addArrangedSubview(actionsRow)
         
         // Upload / Replace Button
-        uploadResumeButton.titleLabel?.font = UIFont.systemFont(ofSize: 13, weight: .semibold)
-        uploadResumeButton.setTitleColor(.white, for: .normal)
-        uploadResumeButton.backgroundColor = AppTheme.Colors.blue
-        uploadResumeButton.layer.cornerRadius = AppTheme.Radii.r12
+        var upConfig = UIButton.Configuration.filled()
+        upConfig.cornerStyle = .capsule
+        upConfig.baseBackgroundColor = AppTheme.Colors.blue
+        upConfig.baseForegroundColor = .white
+        upConfig.contentInsets = NSDirectionalEdgeInsets(top: 8, leading: 14, bottom: 8, trailing: 14)
+        uploadResumeButton.configuration = upConfig
         uploadResumeButton.heightAnchor.constraint(equalToConstant: 38).isActive = true
         uploadResumeButton.addTarget(self, action: #selector(didTapUploadResume), for: .touchUpInside)
         actionsRow.addArrangedSubview(uploadResumeButton)
         
         // Remove Button
-        removeResumeButton.titleLabel?.font = UIFont.systemFont(ofSize: 13, weight: .semibold)
-        removeResumeButton.setTitle("Remove", for: .normal)
-        removeResumeButton.setTitleColor(AppTheme.Colors.red, for: .normal)
-        removeResumeButton.setImage(UIImage(systemName: "trash"), for: .normal)
-        removeResumeButton.tintColor = AppTheme.Colors.red
-        removeResumeButton.backgroundColor = AppTheme.Colors.red.withAlphaComponent(0.12)
-        removeResumeButton.layer.cornerRadius = AppTheme.Radii.r12
-        removeResumeButton.layer.borderWidth = 1
-        removeResumeButton.layer.borderColor = AppTheme.Colors.red.withAlphaComponent(0.3).cgColor
+        var rmConfig = UIButton.Configuration.tinted()
+        rmConfig.cornerStyle = .capsule
+        rmConfig.baseBackgroundColor = AppTheme.Colors.red.withAlphaComponent(0.16)
+        rmConfig.baseForegroundColor = AppTheme.Colors.red
+        rmConfig.title = "Remove"
+        let trashConfig = UIImage.SymbolConfiguration(pointSize: 12, weight: .semibold)
+        rmConfig.image = UIImage(systemName: "trash", withConfiguration: trashConfig)
+        rmConfig.imagePadding = 4
+        rmConfig.contentInsets = NSDirectionalEdgeInsets(top: 8, leading: 14, bottom: 8, trailing: 14)
+        removeResumeButton.configuration = rmConfig
         removeResumeButton.heightAnchor.constraint(equalToConstant: 38).isActive = true
         removeResumeButton.addTarget(self, action: #selector(didTapRemoveResume), for: .touchUpInside)
         actionsRow.addArrangedSubview(removeResumeButton)
@@ -468,9 +456,6 @@ class ProfileViewController: UIViewController {
                     self?.avatarImageView.image = img
                     self?.avatarImageView.isHidden = false
                     self?.avatarInitialLabel.isHidden = true
-                } else {
-                    self?.avatarImageView.isHidden = true
-                    self?.avatarInitialLabel.isHidden = false
                 }
             }
         } else {
@@ -484,61 +469,119 @@ class ProfileViewController: UIViewController {
         headlineLabel.text = "\(majorStr) · \(uni) \(gradYearStr)"
         
         if let gpa = p.gpa {
-            gpaLabel.text = String(format: " %.2f GPA", gpa)
+            gpaLabel.text = String(format: "GPA: %.2f · %@", gpa, uni)
+            gpaLabel.isHidden = false
         } else {
-            gpaLabel.text = " 3.80 GPA"
+            gpaLabel.text = uni
+            gpaLabel.isHidden = false
         }
-        bioLabel.text = (p.bio?.isEmpty == false ? p.bio : nil) ?? "Passionate about software systems, machine learning, and campus opportunities."
         
-        // Education rows
+        if let bio = p.bio, !bio.isEmpty {
+            bioLabel.text = bio
+            bioLabel.isHidden = false
+        } else {
+            bioLabel.text = "Passionate student looking for growth opportunities, fellowships, and internships."
+            bioLabel.isHidden = false
+        }
+        
+        // Education
         educationStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
-        educationStack.addArrangedSubview(makePrefRow(title: "School", value: uni))
-        educationStack.addArrangedSubview(makePrefRow(title: "Degree & Major", value: "\(p.degree ?? "B.S.") in \(majorStr)"))
-        if let minor = p.minor, !minor.isEmpty {
-            educationStack.addArrangedSubview(makePrefRow(title: "Minor", value: minor))
-        }
-        educationStack.addArrangedSubview(makePrefRow(title: "Graduation Year", value: "\(p.graduationYear)"))
+        let eduTitle = UILabel()
+        eduTitle.text = "Education & Studies"
+        eduTitle.font = AppTheme.Typography.cardTitleBold
+        eduTitle.textColor = AppTheme.Colors.textPrimary
+        educationStack.addArrangedSubview(eduTitle)
         
-        // Coursework tags
+        let schoolRow = makePrefRow(title: "University", value: p.university ?? "Not specified")
+        let majorRow = makePrefRow(title: "Major / Field", value: p.major.isEmpty ? "Not specified" : p.major)
+        let gradRow = makePrefRow(title: "Graduation", value: "\(p.graduationYear)")
+        educationStack.addArrangedSubview(schoolRow)
+        educationStack.addArrangedSubview(majorRow)
+        educationStack.addArrangedSubview(gradRow)
+        
         if !p.coursework.isEmpty {
+            let courseworkSection = UIStackView()
+            courseworkSection.axis = .vertical
+            courseworkSection.spacing = AppTheme.Spacing.s6
+            
+            let headerStack = UIStackView()
+            headerStack.axis = .horizontal
+            headerStack.alignment = .center
+            headerStack.spacing = 6
+            
+            let courseIcon = UIImageView(image: UIImage(systemName: "books.vertical.fill"))
+            courseIcon.tintColor = AppTheme.Colors.blue
+            courseIcon.contentMode = .scaleAspectFit
+            courseIcon.translatesAutoresizingMaskIntoConstraints = false
+            courseIcon.widthAnchor.constraint(equalToConstant: 14).isActive = true
+            courseIcon.heightAnchor.constraint(equalToConstant: 14).isActive = true
+            headerStack.addArrangedSubview(courseIcon)
+            
+            let titleLabel = UILabel()
+            titleLabel.text = "Notable Coursework"
+            titleLabel.font = UIFont.systemFont(ofSize: 13, weight: .semibold)
+            titleLabel.textColor = AppTheme.Colors.textSecondary
+            headerStack.addArrangedSubview(titleLabel)
+            
+            courseworkSection.addArrangedSubview(headerStack)
+            courseworkSection.setCustomSpacing(AppTheme.Spacing.s8, after: headerStack)
+            
+            // Coursework tags flow
             let courseTagFlow = TagFlowView()
             courseTagFlow.setTags(p.coursework, customColor: AppTheme.Colors.blue)
-            educationStack.addArrangedSubview(courseTagFlow)
+            courseworkSection.addArrangedSubview(courseTagFlow)
+            
+            educationStack.addArrangedSubview(courseworkSection)
         }
         
         // Skills
-        skillsFlow.setTags(p.skills.isEmpty ? ["Python", "Swift", "Git"] : p.skills, customColor: AppTheme.Colors.cyan)
+        if p.skills.isEmpty {
+            skillsFlow.setTags(["No skills added yet"], customColor: AppTheme.Colors.textTertiary)
+        } else {
+            skillsFlow.setTags(p.skills, customColor: AppTheme.Colors.cyan)
+        }
         
         // Preferences
         preferencesStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        var hasPreferences = false
         if !p.interests.isEmpty {
             preferencesStack.addArrangedSubview(makePrefRow(title: "Interests", value: p.interests.joined(separator: ", ")))
+            hasPreferences = true
         }
         if !p.workModePreferences.isEmpty {
             preferencesStack.addArrangedSubview(makePrefRow(title: "Work Modes", value: p.workModePreferences.joined(separator: ", ")))
+            hasPreferences = true
         }
         if !p.locationPreferences.isEmpty {
             preferencesStack.addArrangedSubview(makePrefRow(title: "Preferred Locations", value: p.locationPreferences.joined(separator: ", ")))
+            hasPreferences = true
         }
         if let comp = p.compensationPreference, !comp.isEmpty {
             preferencesStack.addArrangedSubview(makePrefRow(title: "Target Pay", value: comp))
+            hasPreferences = true
+        }
+        if !hasPreferences {
+            preferencesStack.addArrangedSubview(makePrefRow(title: "Preferences", value: "No preferences specified yet"))
         }
         
         // Resume UI State
         if let resume = p.resume, !resume.fileName.isEmpty {
             resumeFileNameLabel.text = resume.fileName
             resumeFileNameLabel.textColor = AppTheme.Colors.textPrimary
-            uploadResumeButton.setTitle("Replace Resume", for: .normal)
-            uploadResumeButton.setImage(UIImage(systemName: "arrow.triangle.2.circlepath"), for: .normal)
+            uploadResumeButton.configuration?.title = "Replace Resume"
+            let iconConfig = UIImage.SymbolConfiguration(pointSize: 12, weight: .semibold)
+            uploadResumeButton.configuration?.image = UIImage(systemName: "arrow.triangle.2.circlepath", withConfiguration: iconConfig)
+            uploadResumeButton.configuration?.imagePadding = 4
             removeResumeButton.isHidden = false
         } else {
             resumeFileNameLabel.text = "No resume attached"
             resumeFileNameLabel.textColor = AppTheme.Colors.textTertiary
-            uploadResumeButton.setTitle("Add Resume", for: .normal)
-            uploadResumeButton.setImage(UIImage(systemName: "doc.badge.plus"), for: .normal)
+            uploadResumeButton.configuration?.title = "Add Resume"
+            let iconConfig = UIImage.SymbolConfiguration(pointSize: 12, weight: .semibold)
+            uploadResumeButton.configuration?.image = UIImage(systemName: "doc.badge.plus", withConfiguration: iconConfig)
+            uploadResumeButton.configuration?.imagePadding = 4
             removeResumeButton.isHidden = true
         }
-        uploadResumeButton.tintColor = .white
     }
     
     private func makePrefRow(title: String, value: String) -> UIView {
@@ -576,7 +619,12 @@ class ProfileViewController: UIViewController {
     @objc private func didTapSettings() {
         let settingsView = ProfileSettingsView()
         let hosting = UIHostingController(rootView: settingsView)
-        hosting.modalPresentationStyle = .fullScreen
+        hosting.overrideUserInterfaceStyle = .dark
+        hosting.modalPresentationStyle = .pageSheet
+        if let sheet = hosting.sheetPresentationController {
+            sheet.detents = [.large()]
+            sheet.prefersGrabberVisible = true
+        }
         present(hosting, animated: true)
     }
     

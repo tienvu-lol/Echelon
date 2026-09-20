@@ -16,6 +16,7 @@ class FloatingTabBarView: UIView {
     private let tabs: [(title: String, icon: String)] = [
         ("Discover", "safari.fill"),
         ("Matches", "bolt.fill"),
+        ("Chats", "message.fill"),
         ("Profile", "person.crop.circle.fill")
     ]
     
@@ -32,15 +33,16 @@ class FloatingTabBarView: UIView {
     private func setupView() {
         backgroundColor = .clear
         
-        // Echelon/Glass effect with soft drop shadow and Radii · 32 px
-        AppTheme.Effects.applyEchelonGlass(to: self, cornerRadius: AppTheme.Radii.r32)
+        // Apple UIKit Liquid Glass Capsule Effect
+        AppTheme.Effects.applyEchelonGlass(to: self, cornerRadius: AppTheme.Radii.r32, innerHighlight: true, softShadow: true, blurStyle: .systemUltraThinMaterialDark, tintOpacity: 0.30)
         
-        // Active indicator pill
+        // Active indicator pill with translucent liquid glass sheen
         activeIndicator.translatesAutoresizingMaskIntoConstraints = false
-        activeIndicator.backgroundColor = UIColor(hex: "#222D3D")
+        activeIndicator.backgroundColor = UIColor(white: 1.0, alpha: 0.13)
         activeIndicator.layer.cornerRadius = AppTheme.Radii.r20
+        activeIndicator.layer.cornerCurve = .continuous
         activeIndicator.layer.borderWidth = 1.0
-        activeIndicator.layer.borderColor = AppTheme.Colors.border.cgColor
+        activeIndicator.layer.borderColor = UIColor(white: 1.0, alpha: 0.20).cgColor
         addSubview(activeIndicator)
         
         // Horizontal stack
@@ -75,11 +77,12 @@ class FloatingTabBarView: UIView {
         container.isUserInteractionEnabled = false
         container.translatesAutoresizingMaskIntoConstraints = false
         container.axis = .horizontal
-        container.spacing = AppTheme.Spacing.s6
+        container.spacing = AppTheme.Spacing.s4
         container.alignment = .center
         button.addSubview(container)
         
-        let imgView = UIImageView(image: UIImage(systemName: icon))
+        let symbolConfig = UIImage.SymbolConfiguration(pointSize: 16, weight: .semibold)
+        let imgView = UIImageView(image: UIImage(systemName: icon, withConfiguration: symbolConfig))
         imgView.tag = 100
         imgView.contentMode = .scaleAspectFit
         imgView.translatesAutoresizingMaskIntoConstraints = false
@@ -93,7 +96,7 @@ class FloatingTabBarView: UIView {
         label.font = AppTheme.Typography.labelBold
         container.addArrangedSubview(label)
         
-        // Badge view (for Matches tab)
+        // Badge view (for Matches tab) with liquid glass rim
         let badge = UILabel()
         badge.tag = 102
         badge.font = AppTheme.Typography.captionBold
@@ -101,6 +104,9 @@ class FloatingTabBarView: UIView {
         badge.backgroundColor = AppTheme.Colors.red
         badge.textAlignment = .center
         badge.layer.cornerRadius = AppTheme.Radii.r8
+        badge.layer.cornerCurve = .continuous
+        badge.layer.borderWidth = 1.0
+        badge.layer.borderColor = UIColor.white.withAlphaComponent(0.3).cgColor
         badge.layer.masksToBounds = true
         badge.translatesAutoresizingMaskIntoConstraints = false
         badge.isHidden = true
@@ -130,6 +136,13 @@ class FloatingTabBarView: UIView {
         }
     }
     
+    func selectTab(at index: Int, animated: Bool = true) {
+        guard index >= 0 && index < tabButtons.count, index != selectedIndex else { return }
+        selectedIndex = index
+        updateSelection(animated: animated)
+        delegate?.floatingTabBar(self, didSelectTabAt: index)
+    }
+    
     @objc private func didTapTab(_ sender: UIButton) {
         let index = sender.tag
         guard index != selectedIndex else { return }
@@ -137,7 +150,7 @@ class FloatingTabBarView: UIView {
         selectedIndex = index
         updateSelection(animated: true)
         
-        let generator = UIImpactFeedbackGenerator(style: .light)
+        let generator = UIImpactFeedbackGenerator(style: .medium)
         generator.impactOccurred()
         
         delegate?.floatingTabBar(self, didSelectTabAt: index)
@@ -155,8 +168,15 @@ class FloatingTabBarView: UIView {
             let iconView = btn.viewWithTag(100) as? UIImageView
             let label = btn.viewWithTag(101) as? UILabel
             
+            if animated && isSelected {
+                iconView?.transform = CGAffineTransform(scaleX: 0.85, y: 0.85)
+                UIView.animate(withDuration: 0.35, delay: 0, usingSpringWithDamping: 0.65, initialSpringVelocity: 0.5, options: [.curveEaseOut]) {
+                    iconView?.transform = .identity
+                }
+            }
+            
             UIView.animate(withDuration: animated ? 0.25 : 0) {
-                let color = isSelected ? AppTheme.Colors.blue : AppTheme.Colors.textSecondary
+                let color = isSelected ? AppTheme.Colors.cyan : AppTheme.Colors.textSecondary
                 iconView?.tintColor = color
                 label?.textColor = isSelected ? AppTheme.Colors.textPrimary : AppTheme.Colors.textSecondary
                 label?.font = isSelected ? AppTheme.Typography.labelBold : AppTheme.Typography.label
@@ -175,17 +195,19 @@ class FloatingTabBarView: UIView {
         
         if animated {
             UIView.animate(
-                withDuration: 0.35,
+                withDuration: 0.38,
                 delay: 0,
-                usingSpringWithDamping: 0.78,
-                initialSpringVelocity: 0.4,
+                usingSpringWithDamping: 0.75,
+                initialSpringVelocity: 0.3,
                 options: [.curveEaseInOut],
                 animations: {
                     self.activeIndicator.frame = targetFrame
+                    self.activeIndicator.layer.cornerRadius = targetFrame.height / 2
                 }
             )
         } else {
             self.activeIndicator.frame = targetFrame
+            self.activeIndicator.layer.cornerRadius = targetFrame.height / 2
         }
     }
 }

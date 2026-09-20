@@ -43,6 +43,7 @@ class MatchesViewController: UIViewController, UITableViewDataSource, UITableVie
     
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        MatchStore.shared.fetchSavedOpportunitiesFromBackend()
         updateSegmentTitles()
         tableView.reloadData()
         updateEmptyState()
@@ -99,7 +100,7 @@ class MatchesViewController: UIViewController, UITableViewDataSource, UITableVie
     private func setupSegmentedControl() {
         segmentedControl.translatesAutoresizingMaskIntoConstraints = false
         segmentedControl.selectedSegmentIndex = 0
-        segmentedControl.backgroundColor = AppTheme.Colors.glass
+        segmentedControl.backgroundColor = UIColor(white: 1.0, alpha: 0.08)
         segmentedControl.selectedSegmentTintColor = AppTheme.Colors.blue
         
         let normalTextAttrs: [NSAttributedString.Key: Any] = [
@@ -287,7 +288,13 @@ class MatchesViewController: UIViewController, UITableViewDataSource, UITableVie
     private func openOpportunityDetail(for opportunity: OpportunityCard) {
         let detailView = OpportunityDetailView(opportunity: opportunity)
         let hostingController = UIHostingController(rootView: detailView)
-        hostingController.modalPresentationStyle = .fullScreen
+        hostingController.overrideUserInterfaceStyle = .dark
+        hostingController.modalPresentationStyle = .pageSheet
+        if let sheet = hostingController.sheetPresentationController {
+            sheet.detents = [.large()]
+            sheet.prefersGrabberVisible = true
+            sheet.prefersScrollingExpandsWhenScrolledToEdge = false
+        }
         present(hostingController, animated: true)
     }
     
@@ -310,12 +317,11 @@ class MatchesViewController: UIViewController, UITableViewDataSource, UITableVie
     }
 }
 
-// MARK: - Custom Match Table View Cell (Organization Logo Based)
+// MARK: - Custom Match Table View Cell (Apple UIKit Liquid Glass)
 class MatchTableViewCell: UITableViewCell {
     static let identifier = "MatchTableViewCell"
     
     private let cardContainer = UIView()
-    private let accentStripe = UIView()
     private let logoContainer = UIView()
     private let logoImageView = UIImageView()
     private let textStack = UIStackView()
@@ -346,18 +352,22 @@ class MatchTableViewCell: UITableViewCell {
     
     private func setupViews() {
         cardContainer.translatesAutoresizingMaskIntoConstraints = false
-        AppTheme.Effects.applyEchelonGlass(to: cardContainer, cornerRadius: AppTheme.Radii.r20)
+        AppTheme.Effects.applyEchelonGlass(
+            to: cardContainer,
+            cornerRadius: AppTheme.Radii.r20,
+            innerHighlight: true,
+            softShadow: true,
+            blurStyle: .systemUltraThinMaterialDark,
+            tintOpacity: 0.35
+        )
         contentView.addSubview(cardContainer)
         
-        accentStripe.translatesAutoresizingMaskIntoConstraints = false
-        accentStripe.layer.cornerRadius = 2
-        cardContainer.addSubview(accentStripe)
-        
         logoContainer.translatesAutoresizingMaskIntoConstraints = false
-        logoContainer.backgroundColor = AppTheme.Colors.pillBackground
-        logoContainer.layer.cornerRadius = 14
+        logoContainer.backgroundColor = UIColor(white: 1.0, alpha: 0.08)
+        logoContainer.layer.cornerRadius = AppTheme.Radii.r16
+        logoContainer.layer.cornerCurve = .continuous
         logoContainer.layer.borderWidth = 1.0
-        logoContainer.layer.borderColor = AppTheme.Colors.border.cgColor
+        logoContainer.layer.borderColor = UIColor(white: 1.0, alpha: 0.12).cgColor
         logoContainer.layer.masksToBounds = true
         cardContainer.addSubview(logoContainer)
         
@@ -403,20 +413,15 @@ class MatchTableViewCell: UITableViewCell {
             cardContainer.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: AppTheme.Spacing.s18),
             cardContainer.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -AppTheme.Spacing.s18),
             
-            accentStripe.leadingAnchor.constraint(equalTo: cardContainer.leadingAnchor),
-            accentStripe.topAnchor.constraint(equalTo: cardContainer.topAnchor, constant: AppTheme.Spacing.s12),
-            accentStripe.bottomAnchor.constraint(equalTo: cardContainer.bottomAnchor, constant: -AppTheme.Spacing.s12),
-            accentStripe.widthAnchor.constraint(equalToConstant: 4),
-            
-            logoContainer.leadingAnchor.constraint(equalTo: accentStripe.trailingAnchor, constant: AppTheme.Spacing.s14),
+            logoContainer.leadingAnchor.constraint(equalTo: cardContainer.leadingAnchor, constant: AppTheme.Spacing.s14),
             logoContainer.centerYAnchor.constraint(equalTo: cardContainer.centerYAnchor),
             logoContainer.widthAnchor.constraint(equalToConstant: 48),
             logoContainer.heightAnchor.constraint(equalToConstant: 48),
             
             logoImageView.centerXAnchor.constraint(equalTo: logoContainer.centerXAnchor),
             logoImageView.centerYAnchor.constraint(equalTo: logoContainer.centerYAnchor),
-            logoImageView.widthAnchor.constraint(equalToConstant: 26),
-            logoImageView.heightAnchor.constraint(equalToConstant: 26),
+            logoImageView.widthAnchor.constraint(equalToConstant: 24),
+            logoImageView.heightAnchor.constraint(equalToConstant: 24),
             
             textStack.leadingAnchor.constraint(equalTo: logoContainer.trailingAnchor, constant: AppTheme.Spacing.s12),
             textStack.centerYAnchor.constraint(equalTo: cardContainer.centerYAnchor),
@@ -437,10 +442,7 @@ class MatchTableViewCell: UITableViewCell {
         let comp = match.opportunity.compensation ?? "Competitive"
         detailInfoLabel.text = "\(loc) · \(comp)"
         
-        let accentColor = UIColor(hex: match.accentColorHex)
-        accentStripe.backgroundColor = accentColor
-        
-        // Organization Logo Loading (Not the large hero image)
+        // Organization Logo Loading
         if let logoUrl = match.opportunity.organizationLogoUrl, !logoUrl.isEmpty {
             ImageLoader.shared.loadImage(from: logoUrl) { [weak self] img in
                 if let img = img {
@@ -448,7 +450,8 @@ class MatchTableViewCell: UITableViewCell {
                 }
             }
         } else {
-            logoImageView.image = UIImage(systemName: match.iconSystemName)
+            let symbolConfig = UIImage.SymbolConfiguration(pointSize: 18, weight: .medium)
+            logoImageView.image = UIImage(systemName: match.iconSystemName, withConfiguration: symbolConfig)
         }
         
         // Type pill styling
@@ -468,23 +471,31 @@ class MatchTableViewCell: UITableViewCell {
             borderColor: tagColor.withAlphaComponent(0.35)
         )
         
-        // Status / Action button configuration
+        // Modern Apple Button Configuration for Status / Action
         if match.applicationStatus == .applied {
-            var config = UIButton.Configuration.filled()
-            config.title = "Applied ✓"
-            config.baseBackgroundColor = AppTheme.Colors.green.withAlphaComponent(0.2)
+            var config = UIButton.Configuration.tinted()
+            config.title = "Applied"
+            let checkmarkConfig = UIImage.SymbolConfiguration(pointSize: 10, weight: .bold)
+            config.image = UIImage(systemName: "checkmark", withConfiguration: checkmarkConfig)
+            config.imagePlacement = .trailing
+            config.imagePadding = 4
+            config.cornerStyle = .capsule
+            config.baseBackgroundColor = AppTheme.Colors.green.withAlphaComponent(0.18)
             config.baseForegroundColor = AppTheme.Colors.green
-            config.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12)
-            config.background.cornerRadius = AppTheme.Radii.r10
+            config.contentInsets = NSDirectionalEdgeInsets(top: 5, leading: 12, bottom: 5, trailing: 12)
             statusButton.configuration = config
             statusButton.isUserInteractionEnabled = false
         } else {
             var config = UIButton.Configuration.filled()
             config.title = "Apply"
+            let arrowConfig = UIImage.SymbolConfiguration(pointSize: 10, weight: .bold)
+            config.image = UIImage(systemName: "arrow.up.right", withConfiguration: arrowConfig)
+            config.imagePlacement = .trailing
+            config.imagePadding = 4
+            config.cornerStyle = .capsule
             config.baseBackgroundColor = AppTheme.Colors.blue
             config.baseForegroundColor = .white
-            config.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 14, bottom: 6, trailing: 14)
-            config.background.cornerRadius = AppTheme.Radii.r10
+            config.contentInsets = NSDirectionalEdgeInsets(top: 5, leading: 14, bottom: 5, trailing: 14)
             statusButton.configuration = config
             statusButton.isUserInteractionEnabled = true
         }

@@ -97,17 +97,24 @@ public struct ProfileSettingsView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
-            .navigationTitle("Edit Profile & Settings")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {
                         dismiss()
                     }
+                    .font(.system(size: 15, weight: .medium))
                     .foregroundColor(AppTheme.SwiftUIColors.textSecondary)
                 }
                 
-                ToolbarItem(placement: .confirmationAction) {
+                ToolbarItem(placement: .principal) {
+                    Text("Edit Profile & Settings")
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundColor(AppTheme.SwiftUIColors.textPrimary)
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Save") {
                         saveProfile()
                     }
@@ -267,13 +274,15 @@ public struct ProfileSettingsView: View {
                     .foregroundColor(AppTheme.SwiftUIColors.textSecondary)
                 
                 TextEditor(text: $bio)
+                    .font(.system(size: 14))
+                    .foregroundColor(AppTheme.SwiftUIColors.textPrimary)
+                    .tint(AppTheme.SwiftUIColors.cyan)
                     .frame(height: 80)
                     .padding(8)
                     .scrollContentBackground(.hidden)
                     .background(Color(hex: "#0E131E"))
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
-                    .font(.system(size: 14))
             }
         }
         .padding(16)
@@ -304,13 +313,19 @@ public struct ProfileSettingsView: View {
                 }
                 
                 HStack {
-                    TextField("Add skill (e.g. Rust, PyTorch)", text: $newSkillInput)
-                        .font(.system(size: 13))
-                        .padding(8)
-                        .background(Color(hex: "#0E131E"))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
-                        .onSubmit { addSkill() }
+                    TextField(
+                        "",
+                        text: $newSkillInput,
+                        prompt: Text("Add skill (e.g. Rust, PyTorch)").foregroundColor(AppTheme.SwiftUIColors.textTertiary)
+                    )
+                    .font(.system(size: 13))
+                    .foregroundColor(AppTheme.SwiftUIColors.textPrimary)
+                    .tint(AppTheme.SwiftUIColors.cyan)
+                    .padding(8)
+                    .background(Color(hex: "#0E131E"))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
+                    .onSubmit { addSkill() }
                     
                     Button("Add") { addSkill() }
                         .font(.system(size: 13, weight: .bold))
@@ -336,13 +351,19 @@ public struct ProfileSettingsView: View {
                 }
                 
                 HStack {
-                    TextField("Add coursework (e.g. CS 3114)", text: $newCourseInput)
-                        .font(.system(size: 13))
-                        .padding(8)
-                        .background(Color(hex: "#0E131E"))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
-                        .onSubmit { addCourse() }
+                    TextField(
+                        "",
+                        text: $newCourseInput,
+                        prompt: Text("Add coursework (e.g. CS 3114)").foregroundColor(AppTheme.SwiftUIColors.textTertiary)
+                    )
+                    .font(.system(size: 13))
+                    .foregroundColor(AppTheme.SwiftUIColors.textPrimary)
+                    .tint(AppTheme.SwiftUIColors.blue)
+                    .padding(8)
+                    .background(Color(hex: "#0E131E"))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
+                    .onSubmit { addCourse() }
                     
                     Button("Add") { addCourse() }
                         .font(.system(size: 13, weight: .bold))
@@ -403,13 +424,19 @@ public struct ProfileSettingsView: View {
             }
             
             HStack {
-                TextField("Add experience (e.g. ML Intern @ XYZ)", text: $newExperienceInput)
-                    .font(.system(size: 13))
-                    .padding(8)
-                    .background(Color(hex: "#0E131E"))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
-                    .onSubmit { addExperience() }
+                TextField(
+                    "",
+                    text: $newExperienceInput,
+                    prompt: Text("Add experience (e.g. ML Intern @ XYZ)").foregroundColor(AppTheme.SwiftUIColors.textTertiary)
+                )
+                .font(.system(size: 13))
+                .foregroundColor(AppTheme.SwiftUIColors.textPrimary)
+                .tint(AppTheme.SwiftUIColors.cyan)
+                .padding(8)
+                .background(Color(hex: "#0E131E"))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
+                .onSubmit { addExperience() }
                 
                 Button("Add") { addExperience() }
                     .font(.system(size: 13, weight: .bold))
@@ -437,7 +464,7 @@ public struct ProfileSettingsView: View {
                 .font(.system(size: 16, weight: .bold))
                 .foregroundColor(AppTheme.SwiftUIColors.textPrimary)
             
-            formRow(title: "Target Compensation", text: $compensation, placeholder: "e.g. $40/hr+ or Competitive")
+            compensationDropdownRow(title: "Target Compensation", selection: $compensation)
             
             // Work Mode Multi-Select
             VStack(alignment: .leading, spacing: 6) {
@@ -487,13 +514,19 @@ public struct ProfileSettingsView: View {
                 }
                 
                 HStack {
-                    TextField("Add location (e.g. Blacksburg, VA)", text: $newLocationInput)
-                        .font(.system(size: 13))
-                        .padding(8)
-                        .background(Color(hex: "#0E131E"))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
-                        .onSubmit { addLocation() }
+                    TextField(
+                        "",
+                        text: $newLocationInput,
+                        prompt: Text("Add location (e.g. Blacksburg, VA)").foregroundColor(AppTheme.SwiftUIColors.textTertiary)
+                    )
+                    .font(.system(size: 13))
+                    .foregroundColor(AppTheme.SwiftUIColors.textPrimary)
+                    .tint(AppTheme.SwiftUIColors.yellow)
+                    .padding(8)
+                    .background(Color(hex: "#0E131E"))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
+                    .onSubmit { addLocation() }
                     
                     Button("Add") { addLocation() }
                         .font(.system(size: 13, weight: .bold))
@@ -644,17 +677,74 @@ public struct ProfileSettingsView: View {
     }
     
     // MARK: - Helpers
-    private func formRow(title: String, text: Binding<String>, placeholder: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+    private let compensationOptions: [String] = {
+        var options: [String] = []
+        for rate in stride(from: 15, through: 100, by: 5) {
+            options.append("$\(rate)/hr")
+        }
+        for rate in stride(from: 105, through: 150, by: 5) {
+            options.append("$\(rate)/hr")
+        }
+        options.append("$150+/hr")
+        return options
+    }()
+    
+    private func compensationDropdownRow(title: String, selection: Binding<String>) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
             Text(title)
-                .font(.system(size: 12, weight: .medium))
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(AppTheme.SwiftUIColors.textSecondary)
-            TextField(placeholder, text: text)
-                .font(.system(size: 14))
+            
+            Menu {
+                ForEach(compensationOptions, id: \.self) { option in
+                    Button(action: {
+                        selection.wrappedValue = option
+                    }) {
+                        HStack {
+                            Text(option)
+                            if selection.wrappedValue == option || "\(selection.wrappedValue)/hr" == option || selection.wrappedValue == "\(option)+" {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            } label: {
+                HStack {
+                    Text(selection.wrappedValue.isEmpty ? "Select hourly compensation" : selection.wrappedValue)
+                        .font(.system(size: 14))
+                        .foregroundColor(selection.wrappedValue.isEmpty ? AppTheme.SwiftUIColors.textTertiary : AppTheme.SwiftUIColors.textPrimary)
+                    
+                    Spacer()
+                    
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(AppTheme.SwiftUIColors.textSecondary)
+                }
                 .padding(10)
                 .background(Color(hex: "#0E131E"))
                 .clipShape(RoundedRectangle(cornerRadius: 8))
                 .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
+            }
+        }
+    }
+    
+    private func formRow(title: String, text: Binding<String>, placeholder: String) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(title)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(AppTheme.SwiftUIColors.textSecondary)
+            TextField(
+                "",
+                text: text,
+                prompt: Text(placeholder).foregroundColor(AppTheme.SwiftUIColors.textTertiary)
+            )
+            .font(.system(size: 14))
+            .foregroundColor(AppTheme.SwiftUIColors.textPrimary)
+            .tint(AppTheme.SwiftUIColors.cyan)
+            .padding(10)
+            .background(Color(hex: "#0E131E"))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
         }
     }
     
@@ -686,7 +776,18 @@ public struct ProfileSettingsView: View {
         graduationYear = p.graduationYear > 0 ? "\(p.graduationYear)" : "2027"
         gpa = p.gpa != nil ? String(format: "%.2f", p.gpa!) : "3.80"
         bio = p.bio ?? ""
-        compensation = p.compensationPreference ?? ""
+        if let rawComp = p.compensationPreference, !rawComp.isEmpty {
+            let stripped = rawComp.replacingOccurrences(of: "+", with: "")
+            if compensationOptions.contains(rawComp) {
+                compensation = rawComp
+            } else if compensationOptions.contains(stripped) {
+                compensation = stripped
+            } else {
+                compensation = rawComp
+            }
+        } else {
+            compensation = ""
+        }
         skills = p.skills
         coursework = p.coursework
         experience = p.experience

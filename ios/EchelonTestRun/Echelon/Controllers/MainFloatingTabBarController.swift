@@ -5,6 +5,7 @@ class MainFloatingTabBarController: UIViewController, FloatingTabBarDelegate {
     
     private let exploreVC = ExploreViewController()
     private let matchesVC = MatchesViewController()
+    private let chatsVC = ChatsViewController()
     private let profileVC = ProfileViewController()
     
     private var viewControllers: [UIViewController] = []
@@ -27,7 +28,7 @@ class MainFloatingTabBarController: UIViewController, FloatingTabBarDelegate {
     }
     
     private func setupControllers() {
-        viewControllers = [exploreVC, matchesVC, profileVC]
+        viewControllers = [exploreVC, matchesVC, chatsVC, profileVC]
     }
     
     private func setupBindings() {
@@ -36,6 +37,14 @@ class MainFloatingTabBarController: UIViewController, FloatingTabBarDelegate {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] matches in
                 self?.floatingTabBar.setBadgeCount(matches.count, forTabAt: 1)
+            }
+            .store(in: &cancellables)
+            
+        // Observe navigation notification to switch to Discover
+        NotificationCenter.default.publisher(for: NSNotification.Name("SwitchToDiscoverTab"))
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.floatingTabBar.selectTab(at: 0)
             }
             .store(in: &cancellables)
     }
@@ -63,7 +72,7 @@ class MainFloatingTabBarController: UIViewController, FloatingTabBarDelegate {
             
             floatingTabBar.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             floatingTabBar.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -10),
-            floatingTabBar.widthAnchor.constraint(equalTo: view.widthAnchor, constant: -64),
+            floatingTabBar.widthAnchor.constraint(equalTo: view.widthAnchor, constant: -36),
             floatingTabBar.heightAnchor.constraint(equalToConstant: 64)
         ])
     }

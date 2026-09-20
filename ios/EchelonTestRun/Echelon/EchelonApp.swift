@@ -32,7 +32,7 @@ final class AppState: ObservableObject {
     }
     
     init() {
-        self.hasCompletedOnboarding = UserDefaults.standard.object(forKey: "hasCompletedOnboarding") as? Bool ?? true
+        self.hasCompletedOnboarding = UserDefaults.standard.object(forKey: "hasCompletedOnboarding") as? Bool ?? false
     }
 }
 

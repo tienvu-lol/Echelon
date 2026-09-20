@@ -12,6 +12,7 @@ public final class MatchStore: ObservableObject {
     @Published public private(set) var passedOpportunityIds: Set<String> = []
     @Published public var studentProfile: StudentProfile
     @Published public private(set) var chatHistories: [String: [ChatMessage]] = [:]
+    @Published public private(set) var chatOpportunities: [String: OpportunityCard] = [:]
     
     // Refresh & Rate Limiting State (Backend-authoritative with fallback)
     @Published public private(set) var refreshesRemaining: Int = 3
@@ -23,47 +24,34 @@ public final class MatchStore: ObservableObject {
     private let passedKey = "echelon_passed_ids"
     private let profileKey = "echelon_student_profile"
     private let refreshTimestampsKey = "echelon_refresh_timestamps"
+    private let chatHistoriesKey = "echelon_chat_histories"
+    private let chatOpportunitiesKey = "echelon_chat_opportunities"
     
     private init() {
-        let currentEmail = AuthService.shared.userEmail ?? "alex.chen@vt.edu"
-        let currentName = AuthService.shared.userDisplayName ?? "Alex Chen"
+        let currentEmail = AuthService.shared.userEmail
+        let currentName = AuthService.shared.userDisplayName
+        let currentPhone = AuthService.shared.userPhoneNumber
         self.studentProfile = StudentProfile(
             name: currentName,
             email: currentEmail,
-            phoneNumber: "+1 (540) 555-0199",
-            university: "Virginia Tech",
-            major: "Computer Science",
-            minor: "Mathematics",
-            degree: "Bachelor of Science",
+            phoneNumber: currentPhone,
+            university: nil,
+            major: "",
+            minor: nil,
+            degree: nil,
             graduationYear: 2027,
-            gpa: 3.92,
-            skills: ["Python", "Swift", "C++", "PyTorch", "Docker", "AWS", "SQL", "Git"],
-            coursework: ["Data Structures", "Algorithms", "Operating Systems", "Cloud Computing", "Machine Learning"],
-            experience: ["Autonomy Software Intern @ YC Startup", "Undergraduate ML Researcher @ VT AI Lab"],
-            interests: ["Internship", "Research"],
-            fields: ["Software Engineering", "AI/ML"],
-            workModePreferences: ["Hybrid", "In-Person", "Remote"],
-            locationPreferences: ["San Francisco, CA", "New York, NY", "Remote"],
-            compensationPreference: "$45/hr+",
-            bio: "Passionate about systems engineering and applied ML. Previously built autonomy software at a YC startup. Seeking research or engineering roles in AI infrastructure.",
+            gpa: nil,
+            skills: [],
+            coursework: [],
+            experience: [],
+            interests: [],
+            fields: [],
+            workModePreferences: [],
+            locationPreferences: [],
+            compensationPreference: nil,
+            bio: nil,
             profilePictureUrl: nil,
-            resume: Resume(
-                fileName: "Alex_Chen_Resume_2027.pdf",
-                parsedData: ParsedResumeData(
-                    name: "Alex Chen",
-                    email: "alex.chen@vt.edu",
-                    phoneNumber: "+1 (540) 555-0199",
-                    university: "Virginia Tech",
-                    major: "Computer Science",
-                    minor: "Mathematics",
-                    degree: "Bachelor of Science",
-                    graduationYear: 2027,
-                    gpa: 3.92,
-                    skills: ["Python", "Swift", "C++", "PyTorch", "Docker", "AWS", "SQL", "Git"],
-                    coursework: ["Data Structures", "Algorithms", "Operating Systems", "Cloud Computing", "Machine Learning"],
-                    experience: ["Autonomy Software Intern @ YC Startup", "Undergraduate ML Researcher @ VT AI Lab"]
-                )
-            )
+            resume: nil
         )
         
         loadPersistedState()
@@ -105,10 +93,6 @@ public final class MatchStore: ObservableObject {
         } else if let _ = appliedMatches.firstIndex(where: { $0.opportunity.id == id }) {
             // Already applied
             return
-        } else if let opp = OpportunityCard.mockDeck.first(where: { $0.id == id }) {
-            let match = MatchedOpportunity(id: UUID().uuidString, opportunity: opp, applicationStatus: .applied, appliedAt: Date())
-            appliedMatches.insert(match, at: 0)
-            saveState()
         }
     }
     
@@ -131,10 +115,18 @@ public final class MatchStore: ObservableObject {
         return chatHistories[opportunityId] ?? []
     }
     
-    public func appendChatMessage(opportunityId: String, message: ChatMessage) {
+    public func appendChatMessage(opportunityId: String, message: ChatMessage, opportunity: OpportunityCard? = nil) {
+        if let opp = opportunity {
+            chatOpportunities[opp.id] = opp
+        } else if chatOpportunities[opportunityId] == nil {
+            if let found = self.opportunity(for: opportunityId) {
+                chatOpportunities[opportunityId] = found
+            }
+        }
         var list = chatHistories[opportunityId] ?? []
         list.append(message)
         chatHistories[opportunityId] = list
+        saveState()
     }
     
     public func updateChatMessage(opportunityId: String, messageId: UUID, text: String, status: ChatMessageStatus) {
@@ -142,6 +134,62 @@ public final class MatchStore: ObservableObject {
               let index = list.firstIndex(where: { $0.id == messageId }) else { return }
         list[index] = ChatMessage(id: messageId, sender: list[index].sender, text: text, timestamp: list[index].timestamp, status: status)
         chatHistories[opportunityId] = list
+        saveState()
+    }
+    
+    public func opportunity(for id: String) -> OpportunityCard? {
+        if let opp = chatOpportunities[id] {
+            return opp
+        }
+        if let opp = notAppliedMatches.first(where: { $0.opportunity.id == id })?.opportunity {
+            return opp
+        }
+        if let opp = appliedMatches.first(where: { $0.opportunity.id == id })?.opportunity {
+            return opp
+        }
+        return nil
+    }
+    
+    public var activeChatOpportunityIds: [String] {
+        return chatHistories.keys
+            .filter { !(chatHistories[$0]?.isEmpty ?? true) }
+            .sorted { id1, id2 in
+                let t1 = chatHistories[id1]?.last?.timestamp ?? Date.distantPast
+                let t2 = chatHistories[id2]?.last?.timestamp ?? Date.distantPast
+                return t1 > t2
+            }
+    }
+    
+    public func deleteChatHistory(for opportunityId: String) {
+        chatHistories.removeValue(forKey: opportunityId)
+        chatOpportunities.removeValue(forKey: opportunityId)
+        saveState()
+    }
+    
+    // MARK: - Backend Databricks Saved Opportunities Sync
+    public func fetchSavedOpportunitiesFromBackend() {
+        Task {
+            do {
+                let savedCards = try await APIService.shared.getSavedOpportunities()
+                await MainActor.run {
+                    for opp in savedCards {
+                        if !self.notAppliedMatches.contains(where: { $0.opportunity.id == opp.id }) &&
+                           !self.appliedMatches.contains(where: { $0.opportunity.id == opp.id }) {
+                            let match = MatchedOpportunity(
+                                id: UUID().uuidString,
+                                opportunity: opp,
+                                applicationStatus: .notApplied,
+                                matchedAt: Date()
+                            )
+                            self.notAppliedMatches.append(match)
+                        }
+                    }
+                    self.saveState()
+                }
+            } catch {
+                // Ignore background sync errors
+            }
+        }
     }
     
     // MARK: - Rate Limiting Management
@@ -161,7 +209,7 @@ public final class MatchStore: ObservableObject {
     
     public func evaluateRateLimit() {
         let oneHourAgo = Date().addingTimeInterval(-3600)
-        var timestamps = getRefreshTimestamps().filter { $0 > oneHourAgo }
+        let timestamps = getRefreshTimestamps().filter { $0 > oneHourAgo }
         UserDefaults.standard.set(timestamps.map { $0.timeIntervalSince1970 }, forKey: refreshTimestampsKey)
         
         let used = timestamps.count
@@ -203,6 +251,7 @@ public final class MatchStore: ObservableObject {
         appliedMatches.removeAll()
         passedOpportunityIds.removeAll()
         chatHistories.removeAll()
+        chatOpportunities.removeAll()
         refreshesRemaining = 3
         canRefresh = true
         nextRefreshAvailableAt = nil
@@ -212,6 +261,39 @@ public final class MatchStore: ObservableObject {
         UserDefaults.standard.removeObject(forKey: passedKey)
         UserDefaults.standard.removeObject(forKey: profileKey)
         UserDefaults.standard.removeObject(forKey: refreshTimestampsKey)
+        UserDefaults.standard.removeObject(forKey: chatHistoriesKey)
+        UserDefaults.standard.removeObject(forKey: chatOpportunitiesKey)
+    }
+    
+    public func resetForNewUser(name: String? = nil, email: String? = nil, phoneNumber: String? = nil) {
+        clearAllData()
+        let resolvedName = (name?.isEmpty == false) ? name : AuthService.shared.userDisplayName
+        let resolvedEmail = (email?.isEmpty == false) ? email : AuthService.shared.userEmail
+        let resolvedPhone = (phoneNumber?.isEmpty == false) ? phoneNumber : AuthService.shared.userPhoneNumber
+        self.studentProfile = StudentProfile(
+            name: resolvedName,
+            email: resolvedEmail,
+            phoneNumber: resolvedPhone,
+            university: nil,
+            major: "",
+            minor: nil,
+            degree: nil,
+            graduationYear: 2027,
+            gpa: nil,
+            skills: [],
+            coursework: [],
+            experience: [],
+            interests: [],
+            fields: [],
+            workModePreferences: [],
+            locationPreferences: [],
+            compensationPreference: nil,
+            bio: nil,
+            profilePictureUrl: nil,
+            resume: nil
+        )
+        updateProfile(self.studentProfile)
+        saveState()
     }
     
     // MARK: - Persistence
@@ -224,6 +306,13 @@ public final class MatchStore: ObservableObject {
             UserDefaults.standard.set(encodedApplied, forKey: appliedKey)
         }
         UserDefaults.standard.set(Array(passedOpportunityIds), forKey: passedKey)
+        
+        if let encodedChats = try? JSONEncoder().encode(chatHistories) {
+            UserDefaults.standard.set(encodedChats, forKey: chatHistoriesKey)
+        }
+        if let encodedChatOpps = try? JSONEncoder().encode(chatOpportunities) {
+            UserDefaults.standard.set(encodedChatOpps, forKey: chatOpportunitiesKey)
+        }
     }
     
     private func loadPersistedState() {
@@ -234,91 +323,41 @@ public final class MatchStore: ObservableObject {
             self.studentProfile = savedProfile
         }
         
-        let deck = OpportunityCard.mockDeck
         if let notAppliedData = UserDefaults.standard.data(forKey: notAppliedKey),
-           let opps = try? decoder.decode([OpportunityCard].self, from: notAppliedData),
-           opps.count >= 8 {
+           let opps = try? decoder.decode([OpportunityCard].self, from: notAppliedData) {
             self.notAppliedMatches = opps.map {
                 MatchedOpportunity(id: UUID().uuidString, opportunity: $0, applicationStatus: .notApplied)
             }
         } else {
-            // Provide 8 rich matches so Matches tab has plenty of scrollable content
-            var matches: [MatchedOpportunity] = []
-            for (idx, opp) in deck.enumerated() {
-                matches.append(MatchedOpportunity(
-                    id: "match-notapp-\(idx + 1)",
-                    opportunity: opp,
-                    applicationStatus: .notApplied
-                ))
-            }
-            if let first = deck.first {
-                let duplicateOpp = OpportunityCard(
-                    id: "opp-extra-1",
-                    title: "Robotics Software Engineer Intern",
-                    organization: "Boston Dynamics",
-                    opportunityType: "Internship",
-                    description: "Work directly on next-generation athletic intelligence and humanoid manipulation pipelines.",
-                    fullDescription: "Work directly on next-generation athletic intelligence and humanoid manipulation pipelines.",
-                    skills: ["C++", "ROS", "Python", "Kinematics"],
-                    preferredSkills: ["Motion Planning", "SLAM"],
-                    qualifications: ["Proficiency in C++ and linear algebra", "Experience with ROS / Gazebo"],
-                    responsibilities: ["Implement real-time trajectory optimization in C++", "Develop simulation tools in ROS2"],
-                    coursework: ["CS 4804 Robotics", "Math 3114 Linear Algebra"],
-                    location: "Waltham, MA",
-                    workMode: "In-Person",
-                    paid: true,
-                    deadline: "April 15, 2027",
-                    applyUrl: "https://bostondynamics.com/careers",
-                    explanation: "Strong fit with your systems and C++ coursework.",
-                    compensation: "$9,200/mo",
-                    duration: "12 weeks",
-                    startDate: "May 2027",
-                    matchPercentage: 84,
-                    imageUrl: "https://images.unsplash.com/photo-1485827404703-89b55fcc595e?auto=format&fit=crop&w=800&q=80"
-                )
-                matches.append(MatchedOpportunity(id: "match-notapp-8", opportunity: duplicateOpp, applicationStatus: .notApplied))
-            }
-            self.notAppliedMatches = matches
+            self.notAppliedMatches = []
         }
         
         if let appliedData = UserDefaults.standard.data(forKey: appliedKey),
-           let opps = try? decoder.decode([OpportunityCard].self, from: appliedData),
-           opps.count >= 4 {
+           let opps = try? decoder.decode([OpportunityCard].self, from: appliedData) {
             self.appliedMatches = opps.map {
                 MatchedOpportunity(id: UUID().uuidString, opportunity: $0, applicationStatus: .applied, appliedAt: Date())
             }
         } else {
-            // Provide 4 applied matches for tab depth
-            self.appliedMatches = [
-                MatchedOpportunity(
-                    id: "match-applied-1",
-                    opportunity: deck.indices.contains(6) ? deck[6] : deck[0],
-                    applicationStatus: .applied,
-                    appliedAt: Date().addingTimeInterval(-3600)
-                ),
-                MatchedOpportunity(
-                    id: "match-applied-2",
-                    opportunity: deck.indices.contains(5) ? deck[5] : deck[0],
-                    applicationStatus: .applied,
-                    appliedAt: Date().addingTimeInterval(-86400)
-                ),
-                MatchedOpportunity(
-                    id: "match-applied-3",
-                    opportunity: deck.indices.contains(3) ? deck[3] : deck[0],
-                    applicationStatus: .applied,
-                    appliedAt: Date().addingTimeInterval(-172800)
-                ),
-                MatchedOpportunity(
-                    id: "match-applied-4",
-                    opportunity: deck.indices.contains(1) ? deck[1] : deck[0],
-                    applicationStatus: .applied,
-                    appliedAt: Date().addingTimeInterval(-259200)
-                )
-            ]
+            self.appliedMatches = []
         }
         
         if let passedList = UserDefaults.standard.array(forKey: passedKey) as? [String] {
             self.passedOpportunityIds = Set(passedList)
         }
+        
+        if let chatData = UserDefaults.standard.data(forKey: chatHistoriesKey),
+           let savedChats = try? decoder.decode([String: [ChatMessage]].self, from: chatData) {
+            self.chatHistories = savedChats
+        } else {
+            self.chatHistories = [:]
+        }
+        
+        if let oppData = UserDefaults.standard.data(forKey: chatOpportunitiesKey),
+           let savedOpps = try? decoder.decode([String: OpportunityCard].self, from: oppData) {
+            self.chatOpportunities = savedOpps
+        } else {
+            self.chatOpportunities = [:]
+        }
+        
     }
 }

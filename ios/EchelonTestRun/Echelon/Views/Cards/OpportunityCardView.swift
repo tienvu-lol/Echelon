@@ -19,28 +19,16 @@ class OpportunityCardView: UIView, UIGestureRecognizerDelegate {
     private let gradientOverlayView = UIView()
     private let gradientLayer = CAGradientLayer()
     
-    // Top Bar
+    // Top Bar Floating Glass
     private let orgPillView = UIView()
     private let orgIconImageView = UIImageView()
     private let orgNameLabel = UILabel()
     private let orgLocationLabel = UILabel()
     private let matchScoreView = CircularProgressView()
     
-    // Stamp Overlays
-    private let passStamp = PassApplyOverlayView(type: .pass)
-    private let matchStamp = PassApplyOverlayView(type: .match)
-    
-    // Bottom Container
+    // Bottom Sheet Floating Glass
     private let bottomContainerView = UIView()
-    private let typePill = TagPillView(
-        text: "Opportunity",
-        iconName: "briefcase.fill",
-        textColor: AppTheme.Colors.cyan,
-        backgroundColor: AppTheme.Colors.cyan.withAlphaComponent(0.15),
-        borderColor: AppTheme.Colors.cyan.withAlphaComponent(0.4),
-        font: AppTheme.Typography.labelBold,
-        cornerRadius: AppTheme.Radii.r12
-    )
+    private let typePill = TagPillView(text: "")
     private let titleLabel = UILabel()
     private let infoRowStack = UIStackView()
     private let skillsStackView = UIStackView()
@@ -49,12 +37,16 @@ class OpportunityCardView: UIView, UIGestureRecognizerDelegate {
     private let deadlineLabel = UILabel()
     private let viewDetailsButton = UIButton(type: .system)
     
-    // Gesture & Animation tracking
+    // Stamps
+    private let passStamp = PassApplyOverlayView(type: .pass)
+    private let matchStamp = PassApplyOverlayView(type: .match)
+    
+    // Gesture & State
     private var panGesture: UIPanGestureRecognizer?
     private var tapGesture: UITapGestureRecognizer?
     private var originalCenter: CGPoint = .zero
-    private let swipeThreshold: CGFloat = 115.0
     private var isAnimatingSwipe = false
+    private let swipeThreshold: CGFloat = 110.0
     
     init(opportunity: OpportunityCard) {
         self.opportunity = opportunity
@@ -76,24 +68,26 @@ class OpportunityCardView: UIView, UIGestureRecognizerDelegate {
     private func setupCard() {
         backgroundColor = .clear
         
-        // Outer Shadow (Soft drop shadow from Foundations)
+        // Outer Shadow per Apple HIG floating layer
         layer.shadowColor = UIColor.black.cgColor
-        layer.shadowOpacity = 0.45
+        layer.shadowOpacity = 0.35
         layer.shadowOffset = CGSize(width: 0, height: 10)
-        layer.shadowRadius = 18
+        layer.shadowRadius = 22
+        layer.masksToBounds = false
         
-        // Main Container using Radii · 26 px
+        // Main Container using Radii · 26 px with continuous corner curves
         cardContentView.translatesAutoresizingMaskIntoConstraints = false
         cardContentView.backgroundColor = AppTheme.Colors.cardBackground
         cardContentView.layer.cornerRadius = AppTheme.Radii.r26
+        cardContentView.layer.cornerCurve = .continuous
         cardContentView.layer.borderWidth = 1.0
-        cardContentView.layer.borderColor = AppTheme.Colors.border.cgColor
+        cardContentView.layer.borderColor = UIColor.white.withAlphaComponent(0.12).cgColor
         cardContentView.layer.masksToBounds = true
         addSubview(cardContentView)
         
         // Placeholder background view
         imagePlaceholderView.translatesAutoresizingMaskIntoConstraints = false
-        imagePlaceholderView.backgroundColor = AppTheme.Colors.glass
+        imagePlaceholderView.backgroundColor = UIColor(white: 0.12, alpha: 1.0)
         cardContentView.addSubview(imagePlaceholderView)
         
         // Background remote image / backdrop
@@ -102,13 +96,13 @@ class OpportunityCardView: UIView, UIGestureRecognizerDelegate {
         backgroundImageView.clipsToBounds = true
         cardContentView.addSubview(backgroundImageView)
         
-        // Dark gradient to ensure high contrast
+        // Subtle optical vignette gradient allowing background photo to shine through
         gradientLayer.colors = [
-            AppTheme.Colors.background.withAlphaComponent(0.25).cgColor,
-            AppTheme.Colors.background.withAlphaComponent(0.75).cgColor,
-            AppTheme.Colors.background.withAlphaComponent(0.98).cgColor
+            UIColor.black.withAlphaComponent(0.08).cgColor,
+            UIColor.black.withAlphaComponent(0.35).cgColor,
+            UIColor.black.withAlphaComponent(0.85).cgColor
         ]
-        gradientLayer.locations = [0.0, 0.45, 1.0]
+        gradientLayer.locations = [0.0, 0.40, 1.0]
         gradientOverlayView.layer.addSublayer(gradientLayer)
         gradientOverlayView.translatesAutoresizingMaskIntoConstraints = false
         gradientOverlayView.isUserInteractionEnabled = false
@@ -147,7 +141,7 @@ class OpportunityCardView: UIView, UIGestureRecognizerDelegate {
         self.panGesture = pan
         addGestureRecognizer(pan)
         
-        // Tap Gesture (Opens Article/Detail Page, never counts as swipe or match)
+        // Tap Gesture (Opens Opportunity Detail)
         let tap = UITapGestureRecognizer(target: self, action: #selector(handleCardTap(_:)))
         tap.cancelsTouchesInView = false
         self.tapGesture = tap
@@ -155,17 +149,25 @@ class OpportunityCardView: UIView, UIGestureRecognizerDelegate {
     }
     
     private func setupTopBar() {
-        // Org Pill (Left) with Glass Effect and Radii · 20 px
+        // Org Pill (Left) with Apple UIKit Liquid Glass Effect
         orgPillView.translatesAutoresizingMaskIntoConstraints = false
-        AppTheme.Effects.applyEchelonGlass(to: orgPillView, cornerRadius: AppTheme.Radii.r20)
+        AppTheme.Effects.applyEchelonGlass(
+            to: orgPillView,
+            cornerRadius: AppTheme.Radii.r22,
+            innerHighlight: true,
+            softShadow: true,
+            blurStyle: .systemUltraThinMaterialDark,
+            tintOpacity: 0.25
+        )
         cardContentView.addSubview(orgPillView)
         
         // Org Icon
         orgIconImageView.translatesAutoresizingMaskIntoConstraints = false
         orgIconImageView.contentMode = .scaleAspectFit
         orgIconImageView.tintColor = AppTheme.Colors.green
-        orgIconImageView.backgroundColor = AppTheme.Colors.pillBackground
+        orgIconImageView.backgroundColor = UIColor(white: 1.0, alpha: 0.08)
         orgIconImageView.layer.cornerRadius = AppTheme.Radii.r12
+        orgIconImageView.layer.cornerCurve = .continuous
         orgIconImageView.layer.masksToBounds = true
         orgPillView.addSubview(orgIconImageView)
         
@@ -186,7 +188,7 @@ class OpportunityCardView: UIView, UIGestureRecognizerDelegate {
         orgLocationLabel.textColor = AppTheme.Colors.textSecondary
         orgTextStack.addArrangedSubview(orgLocationLabel)
         
-        // Circular Match Progress (Right)
+        // Circular Match Progress with Liquid Glass (Right)
         matchScoreView.translatesAutoresizingMaskIntoConstraints = false
         cardContentView.addSubview(matchScoreView)
         
@@ -212,9 +214,16 @@ class OpportunityCardView: UIView, UIGestureRecognizerDelegate {
     }
     
     private func setupBottomPanel() {
-        // Bottom Container with Echelon/Glass effect and Radii · 22 px
+        // Bottom Container with Apple UIKit Liquid Glass effect and Radii · 22 px
         bottomContainerView.translatesAutoresizingMaskIntoConstraints = false
-        AppTheme.Effects.applyEchelonGlass(to: bottomContainerView, cornerRadius: AppTheme.Radii.r22)
+        AppTheme.Effects.applyEchelonGlass(
+            to: bottomContainerView,
+            cornerRadius: AppTheme.Radii.r22,
+            innerHighlight: true,
+            softShadow: true,
+            blurStyle: .systemThinMaterialDark,
+            tintOpacity: 0.40
+        )
         cardContentView.addSubview(bottomContainerView)
         
         typePill.translatesAutoresizingMaskIntoConstraints = false
@@ -259,9 +268,18 @@ class OpportunityCardView: UIView, UIGestureRecognizerDelegate {
         deadlineLabel.textColor = AppTheme.Colors.textSecondary
         footerStack.addArrangedSubview(deadlineLabel)
         
-        viewDetailsButton.setTitle("Details →", for: .normal)
-        viewDetailsButton.titleLabel?.font = AppTheme.Typography.labelBold
-        viewDetailsButton.setTitleColor(AppTheme.Colors.cyan, for: .normal)
+        // Modern Apple Button Configuration for Details
+        var detailsConfig = UIButton.Configuration.tinted()
+        detailsConfig.title = "Details"
+        let symbolConfig = UIImage.SymbolConfiguration(pointSize: 10, weight: .bold)
+        detailsConfig.image = UIImage(systemName: "chevron.right", withConfiguration: symbolConfig)
+        detailsConfig.imagePlacement = .trailing
+        detailsConfig.imagePadding = 4
+        detailsConfig.cornerStyle = .capsule
+        detailsConfig.baseForegroundColor = AppTheme.Colors.cyan
+        detailsConfig.baseBackgroundColor = AppTheme.Colors.cyan.withAlphaComponent(0.16)
+        detailsConfig.contentInsets = NSDirectionalEdgeInsets(top: 5, leading: 12, bottom: 5, trailing: 12)
+        viewDetailsButton.configuration = detailsConfig
         viewDetailsButton.addTarget(self, action: #selector(didTapDetails), for: .touchUpInside)
         footerStack.addArrangedSubview(viewDetailsButton)
         
@@ -343,7 +361,8 @@ class OpportunityCardView: UIView, UIGestureRecognizerDelegate {
             }
         } else {
             let iconName = opp.companyLogoName ?? "shield.lefthalf.filled"
-            orgIconImageView.image = UIImage(systemName: iconName)
+            let config = UIImage.SymbolConfiguration(pointSize: 14, weight: .semibold)
+            orgIconImageView.image = UIImage(systemName: iconName, withConfiguration: config)
         }
         
         if let match = opp.matchPercentage {
@@ -370,6 +389,7 @@ class OpportunityCardView: UIView, UIGestureRecognizerDelegate {
             pillColor = AppTheme.Colors.purple
             pillIcon = "tag.fill"
         }
+        
         typePill.configure(
             text: opp.opportunityType.uppercased(),
             iconName: pillIcon,
@@ -436,7 +456,8 @@ class OpportunityCardView: UIView, UIGestureRecognizerDelegate {
         stack.spacing = AppTheme.Spacing.s4
         stack.alignment = .center
         
-        let img = UIImageView(image: UIImage(systemName: icon))
+        let config = UIImage.SymbolConfiguration(pointSize: 10, weight: .semibold)
+        let img = UIImageView(image: UIImage(systemName: icon, withConfiguration: config))
         img.tintColor = AppTheme.Colors.textSecondary
         img.contentMode = .scaleAspectFit
         img.translatesAutoresizingMaskIntoConstraints = false
@@ -553,7 +574,6 @@ class OpportunityCardView: UIView, UIGestureRecognizerDelegate {
     }
     
     @objc private func handleCardTap(_ gesture: UITapGestureRecognizer) {
-        // Tapping a card does NOT count as a swipe or match
         delegate?.cardDidTap(self)
     }
     
@@ -561,7 +581,10 @@ class OpportunityCardView: UIView, UIGestureRecognizerDelegate {
         delegate?.cardDidTap(self)
     }
     
-    // Allow pan gesture to take precedence over tap during movement
+    func cardDidTapInfo(_ card: OpportunityCardView) {
+        delegate?.cardDidTapInfo(self)
+    }
+    
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
         if gestureRecognizer == panGesture && otherGestureRecognizer == tapGesture {
             return false

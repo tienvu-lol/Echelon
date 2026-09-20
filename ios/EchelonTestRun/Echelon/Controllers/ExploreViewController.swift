@@ -60,8 +60,8 @@ class ExploreViewController: UIViewController, OpportunityCardDelegate {
             // Card Deck Container occupies prominent screen real estate without action buttons
             cardDeckContainer.topAnchor.constraint(equalTo: headerStack.bottomAnchor, constant: AppTheme.Spacing.s12),
             cardDeckContainer.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -96),
-            cardDeckContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: AppTheme.Spacing.s12),
-            cardDeckContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -AppTheme.Spacing.s12),
+            cardDeckContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: AppTheme.Spacing.s16),
+            cardDeckContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -AppTheme.Spacing.s16),
             
             // Status / End-of-batch Container
             statusContainerView.centerXAnchor.constraint(equalTo: view.centerXAnchor),
@@ -280,48 +280,6 @@ class ExploreViewController: UIViewController, OpportunityCardDelegate {
         }
     }
 
-    private func loadRecommendations() {
-        showEmptyState(
-            title: "Loading recommendations…",
-            subtitle: "Fetching personalized opportunities."
-        )
-
-        Task { [weak self] in
-            guard let self else { return }
-
-            do {
-                let response = try await APIService.shared.getRecommendations(limit: 10)
-                self.opportunities = response.opportunities.map(\.card)
-
-                if self.opportunities.isEmpty {
-                    self.showEmptyState(
-                        title: "No recommendations yet",
-                        subtitle: "Refresh to check for new opportunities."
-                    )
-                } else {
-                    self.renderCards()
-                }
-            } catch {
-                self.opportunities = []
-                self.showEmptyState(
-                    title: "Unable to load recommendations",
-                    subtitle: error.localizedDescription
-                )
-            }
-        }
-    }
-
-    private func showEmptyState(title: String, subtitle: String) {
-        cardViews.forEach { $0.removeFromSuperview() }
-        cardViews.removeAll()
-        emptyTitleLabel.text = title
-        emptySubtitleLabel.text = subtitle
-        emptyStateView.isHidden = false
-        actionButtonsStack.isHidden = true
-        cardDeckContainer.isHidden = true
-        countLabel.text = "0 opportunities"
-    }
-    
     private func updateCountLabel() {
         let remaining = batchOpportunities.count
         countLabel.text = "\(remaining) left in batch"
@@ -407,7 +365,13 @@ class ExploreViewController: UIViewController, OpportunityCardDelegate {
     private func openOpportunityDetail(for opportunity: OpportunityCard) {
         let detailView = OpportunityDetailView(opportunity: opportunity)
         let hostingController = UIHostingController(rootView: detailView)
-        hostingController.modalPresentationStyle = .fullScreen
+        hostingController.overrideUserInterfaceStyle = .dark
+        hostingController.modalPresentationStyle = .pageSheet
+        if let sheet = hostingController.sheetPresentationController {
+            sheet.detents = [.large()]
+            sheet.prefersGrabberVisible = true
+            sheet.prefersScrollingExpandsWhenScrolledToEdge = false
+        }
         present(hostingController, animated: true)
     }
     
@@ -425,13 +389,13 @@ class ExploreViewController: UIViewController, OpportunityCardDelegate {
             // Right swipe = MATCH (Not Applied)
             MatchStore.shared.recordSwipe(opportunity: swipedOpp, direction: .matched)
             Task {
-                _ = try? await APIService.shared.recordSwipe(studentId: studentId, opportunityId: swipedOpp.id, direction: "match")
+                _ = try? await APIService.shared.recordSwipe(studentId: studentId, opportunityId: swipedOpp.id, direction: "right")
             }
         } else {
             // Left swipe = PASS
             MatchStore.shared.recordSwipe(opportunity: swipedOpp, direction: .passed)
             Task {
-                _ = try? await APIService.shared.recordSwipe(studentId: studentId, opportunityId: swipedOpp.id, direction: "pass")
+                _ = try? await APIService.shared.recordSwipe(studentId: studentId, opportunityId: swipedOpp.id, direction: "left")
             }
         }
         

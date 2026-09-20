@@ -165,6 +165,11 @@ struct SignUpView: View {
                                         stayLoggedIn: stayLoggedIn
                                     )
                                     await MainActor.run {
+                                        MatchStore.shared.resetForNewUser(
+                                            name: fullName.trimmingCharacters(in: .whitespacesAndNewlines),
+                                            email: email.trimmingCharacters(in: .whitespacesAndNewlines),
+                                            phoneNumber: phoneNumber.isEmpty ? nil : phoneNumber
+                                        )
                                         AppState.shared.hasCompletedOnboarding = false
                                     }
                                 } catch {

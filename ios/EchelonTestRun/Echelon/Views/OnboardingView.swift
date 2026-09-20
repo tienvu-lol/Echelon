@@ -20,18 +20,18 @@ struct OnboardingView: View {
     // Step 2: Education
     @State private var name: String = ""
     @State private var university: String = ""
-    @State private var degree: String = "B.S."
+    @State private var degree: String = ""
     @State private var major: String = ""
     @State private var minor: String = ""
-    @State private var graduationYear: String = "2027"
-    @State private var gpa: String = "3.85"
+    @State private var graduationYear: String = ""
+    @State private var gpa: String = ""
     
     // Step 3: Coursework
-    @State private var coursework: [String] = ["Data Structures & Algorithms", "Computer Systems"]
+    @State private var coursework: [String] = []
     @State private var newCourseInput: String = ""
     
     // Step 4: Skills
-    @State private var skills: [String] = ["Python", "Swift", "Git"]
+    @State private var skills: [String] = []
     @State private var newSkillInput: String = ""
     
     // Step 5: Experience
@@ -39,11 +39,11 @@ struct OnboardingView: View {
     @State private var newExperienceInput: String = ""
     
     // Step 6: Preferences
-    @State private var selectedWorkModes: Set<String> = ["Hybrid", "Remote"]
+    @State private var selectedWorkModes: Set<String> = []
     let allWorkModes = ["In-Person", "Hybrid", "Remote"]
-    @State private var locationPreferences: [String] = ["San Francisco, CA", "New York, NY"]
+    @State private var locationPreferences: [String] = []
     @State private var newLocationInput: String = ""
-    @State private var compensationTarget: String = "$40/hr+"
+    @State private var compensationTarget: String = ""
     
     // Saving state
     @State private var isSaving: Bool = false
@@ -526,7 +526,7 @@ struct OnboardingView: View {
                 }
                 
                 // Desired Compensation
-                fieldInput(title: "Target Compensation", text: $compensationTarget, placeholder: "e.g. $45/hr+ or $9,000/mo")
+                compensationDropdown(title: "Target Compensation", selection: $compensationTarget)
                 
                 // Preferred Locations
                 VStack(alignment: .leading, spacing: 8) {
@@ -658,6 +658,57 @@ struct OnboardingView: View {
         }
     }
     
+    private let compensationOptions: [String] = {
+        var options: [String] = []
+        for rate in stride(from: 15, through: 100, by: 5) {
+            options.append("$\(rate)/hr")
+        }
+        for rate in stride(from: 105, through: 150, by: 5) {
+            options.append("$\(rate)/hr")
+        }
+        options.append("$150+/hr")
+        return options
+    }()
+    
+    private func compensationDropdown(title: String, selection: Binding<String>) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(title)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(AppTheme.SwiftUIColors.textSecondary)
+            
+            Menu {
+                ForEach(compensationOptions, id: \.self) { option in
+                    Button(action: {
+                        selection.wrappedValue = option
+                    }) {
+                        HStack {
+                            Text(option)
+                            if selection.wrappedValue == option || "\(selection.wrappedValue)/hr" == option || selection.wrappedValue == "\(option)+" {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            } label: {
+                HStack {
+                    Text(selection.wrappedValue.isEmpty ? "Select hourly compensation" : selection.wrappedValue)
+                        .font(.system(size: 14))
+                        .foregroundColor(selection.wrappedValue.isEmpty ? AppTheme.SwiftUIColors.textTertiary : AppTheme.SwiftUIColors.textPrimary)
+                    
+                    Spacer()
+                    
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(AppTheme.SwiftUIColors.textSecondary)
+                }
+                .padding(10)
+                .background(Color(hex: "#0E131E"))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppTheme.SwiftUIColors.border, lineWidth: 1))
+            }
+        }
+    }
+    
     private func fieldInput(title: String, text: Binding<String>, placeholder: String) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(title)
@@ -757,20 +808,24 @@ struct OnboardingView: View {
         var profile = matchStore.studentProfile
         if !name.isEmpty { profile.name = name }
         if !university.isEmpty { profile.university = university }
-        profile.degree = degree
+        profile.degree = degree.isEmpty ? nil : degree
         if !major.isEmpty { profile.major = major }
         profile.minor = minor.isEmpty ? nil : minor
-        profile.graduationYear = Int(graduationYear) ?? 2027
+        if let gradYearInt = Int(graduationYear) {
+            profile.graduationYear = gradYearInt
+        }
         profile.gpa = Double(gpa)
         profile.coursework = coursework
         profile.skills = skills
         profile.experience = experiences
         profile.workModePreferences = Array(selectedWorkModes)
         profile.locationPreferences = locationPreferences
-        profile.compensationPreference = compensationTarget
+        profile.compensationPreference = compensationTarget.isEmpty ? nil : compensationTarget
         
         if let fileName = uploadedFileName {
-            profile.resume = Resume(fileName: fileName)
+            profile.resume = Resume(fileName: fileName, parsedData: parsedResumeData)
+        } else {
+            profile.resume = nil
         }
         
         matchStore.updateProfile(profile)

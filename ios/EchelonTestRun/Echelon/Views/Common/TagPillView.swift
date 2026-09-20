@@ -32,6 +32,7 @@ class TagPillView: UIView {
     
     private func setupViews(font: UIFont, cornerRadius: CGFloat) {
         layer.cornerRadius = cornerRadius
+        layer.cornerCurve = .continuous
         layer.masksToBounds = true
         isUserInteractionEnabled = false
         
@@ -96,7 +97,8 @@ class TagPillView: UIView {
         textLabel.textColor = textColor
         
         if let iconName = iconName {
-            iconImageView.image = UIImage(systemName: iconName)
+            let config = UIImage.SymbolConfiguration(pointSize: 11, weight: .semibold)
+            iconImageView.image = UIImage(systemName: iconName, withConfiguration: config)
             iconImageView.tintColor = textColor
             iconImageView.isHidden = false
         } else {

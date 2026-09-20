@@ -95,35 +95,41 @@ public struct RemoteImageView: View {
     }
     
     public var body: some View {
-        ZStack {
-            if let uiImage = image {
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .aspectRatio(contentMode: contentMode)
-                    .frame(maxWidth: .infinity)
-            } else if isLoading {
-                ZStack {
-                    LinearGradient(
-                        colors: [Color(hex: "#1A2333"), Color(hex: "#0F1622")],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: .white.opacity(0.8)))
-                }
-            } else {
-                ZStack {
-                    LinearGradient(
-                        colors: [Color(hex: "#161E2E"), Color(hex: "#0E131E")],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                    Image(systemName: fallbackSystemName)
-                        .font(.system(size: 44, weight: .light))
-                        .foregroundColor(Color.white.opacity(0.35))
+        GeometryReader { geo in
+            ZStack {
+                if let uiImage = image {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .aspectRatio(contentMode: contentMode)
+                        .frame(width: geo.size.width, height: geo.size.height)
+                        .clipped()
+                } else if isLoading {
+                    ZStack {
+                        LinearGradient(
+                            colors: [Color(hex: "#1A2333"), Color(hex: "#0F1622")],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white.opacity(0.8)))
+                    }
+                    .frame(width: geo.size.width, height: geo.size.height)
+                } else {
+                    ZStack {
+                        LinearGradient(
+                            colors: [Color(hex: "#161E2E"), Color(hex: "#0E131E")],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                        Image(systemName: fallbackSystemName)
+                            .font(.system(size: min(geo.size.width, geo.size.height) * 0.45, weight: .light))
+                            .foregroundColor(Color.white.opacity(0.35))
+                    }
+                    .frame(width: geo.size.width, height: geo.size.height)
                 }
             }
         }
+        .clipped()
         .onAppear {
             loadImage()
         }
