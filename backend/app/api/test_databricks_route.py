@@ -33,4 +33,3 @@ def test_databricks() -> DatabricksTestResponse:
             provider="databricks",
             user=str(exc),
         )
-

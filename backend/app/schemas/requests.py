@@ -1,9 +1,12 @@
+from typing import Literal
+
 from pydantic import BaseModel
-from typing import Optional, Literal
+
 
 class ProfileParseRequest(BaseModel):
-    bio: Optional[str] = None
+    bio: str | None = None
     interests: list[str] = []
+
 
 class ProfileCreateRequest(BaseModel):
     major: str
@@ -12,7 +15,8 @@ class ProfileCreateRequest(BaseModel):
     interests: list[str] = []
     coursework: list[str] = []
     experience: list[str] = []
-    bio: Optional[str] = None
+    bio: str | None = None
+
 
 class SwipeRequest(BaseModel):
     student_id: str

@@ -1,11 +1,16 @@
 """FastAPI dependencies."""
+
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
 from app.services.firebase import FirebaseService, FirebaseServiceError
 
 security = HTTPBearer()
 
-def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> dict:
     """
     Dependency to get the current authenticated user from Firebase token.
     Returns the decoded token dictionary.
@@ -20,4 +25,3 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
             detail=str(e),
             headers={"WWW-Authenticate": "Bearer"},
         )
-

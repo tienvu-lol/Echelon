@@ -64,31 +64,70 @@ Returns:
   "experience": []
 }
 
-## GET /opportunities/recommendations
+## GET /api/opportunities/recommendations
 
-Query:
-student_id
+Requires: `Authorization: Bearer <Firebase ID Token>`
 
-Returns:
+Query parameters:
+- `limit` (optional integer, default: `10`, min: `1`, max: `50`): Maximum number of recommendations to return.
 
-[
-  {
-    "id": "...",
-    "title": "...",
-    "organization": "...",
-    "description": "...",
-    "match_reason": "...",
-    "source_url": "...",
-    "contact_email": null
-  }
-]
+Response: `RecommendationsResponse`
+```json
+{
+  "student_id": "user123",
+  "opportunities": [
+    {
+      "opportunity": {
+        "id": "opp-001",
+        "title": "Systems Software Intern",
+        "organization": "Virginia Tech CS Department",
+        "opportunity_type": "internship",
+        "description": "Work on distributed systems and cloud infrastructure.",
+        "source_url": "https://cs.vt.edu/opp/001",
+        "source_name": "VT CS",
+        "source_age": null,
+        "active": true,
+        "first_seen_at": "2026-09-20T00:00:00Z",
+        "last_seen_at": "2026-09-20T00:00:00Z",
+        "skills": ["Python", "Linux"],
+        "interests": ["Software Systems"],
+        "eligibility": ["Undergraduate"],
+        "majors": ["Computer Science"],
+        "class_years": ["Junior", "Senior"],
+        "school_restrictions": [],
+        "eligibility_notes": [],
+        "degree_levels": ["BS"],
+        "work_authorization_requirements": [],
+        "career_tracks": [
+          {"track": "software_engineering", "weight": 1.0}
+        ],
+        "location": "Blacksburg, VA",
+        "remote_status": "in_person",
+        "time_commitment": "10 hrs/week",
+        "compensation": "Paid",
+        "deadline": "2026-12-01",
+        "apply_url": "https://cs.vt.edu/apply/001",
+        "contact_name": null,
+        "contact_email": null
+      },
+      "score": 95,
+      "match_reason": "Direct match for your Computer Science major, Linux skills, and systems interest.",
+      "matched_traits": ["skills", "career_tracks"],
+      "gaps": [],
+      "career_track_fit": ["software_engineering"],
+      "eligibility_status": "ELIGIBLE",
+      "eligibility_notes": []
+    }
+  ]
+}
+```
 
 ---
 
 ## Domain Models
 
 These models describe the canonical JSON structure used internally and
-returned by API endpoints.  They are defined in `backend/app/models/`.
+returned by API endpoints. They are defined in `backend/app/models/`.
 
 ### StudentProfile
 
@@ -130,14 +169,25 @@ returned by API endpoints.  They are defined in `backend/app/models/`.
   "opportunity_type": "research",
   "description":      "Work on ML research.",
   "source_url":       "https://example.vt.edu/opp/001",
+  "source_name":      "VT CS",
+  "source_age":       null,
+  "active":           true,
+  "first_seen_at":    "2026-09-20T00:00:00Z",
+  "last_seen_at":     "2026-09-20T00:00:00Z",
 
   "skills":           ["Python"],
   "interests":        ["AI"],
   "eligibility":      ["Undergraduate"],
   "majors":           ["Computer Science"],
   "class_years":      ["Sophomore", "Junior"],
+  "school_restrictions": [],
+  "eligibility_notes":   [],
+  "degree_levels":       ["BS"],
+  "work_authorization_requirements": [],
+  "career_tracks":    [{"track": "ai_ml", "weight": 1.0}],
 
   "location":         "Blacksburg, VA",
+  "remote_status":    "in_person",
   "time_commitment":  "10 hrs/week",
   "compensation":     "Unpaid",
   "deadline":         "2026-12-01",
@@ -147,23 +197,34 @@ returned by API endpoints.  They are defined in `backend/app/models/`.
 }
 ```
 
-| Field              | Type           | Required | Notes                                          |
-|--------------------|----------------|----------|------------------------------------------------|
-| `id`               | string         | **Yes**  |                                                |
-| `title`            | string         | **Yes**  |                                                |
-| `organization`     | string         | **Yes**  |                                                |
-| `opportunity_type` | string         | **Yes**  | e.g. research, job, club, scholarship          |
-| `description`      | string         | **Yes**  |                                                |
-| `source_url`       | string         | **Yes**  | Canonical link to opportunity listing          |
-| `skills`           | list[string]   | No       | Defaults to `[]`                               |
-| `interests`        | list[string]   | No       | Defaults to `[]`                               |
-| `eligibility`      | list[string]   | No       | Defaults to `[]`                               |
-| `majors`           | list[string]   | No       | Defaults to `[]`                               |
-| `class_years`      | list[string]   | No       | Defaults to `[]`                               |
-| `location`         | string or null | No       |                                                |
-| `time_commitment`  | string or null | No       |                                                |
-| `compensation`     | string or null | No       |                                                |
-| `deadline`         | string or null | No       | ISO 8601 date string                           |
-| `apply_url`        | string or null | No       |                                                |
-| `contact_name`     | string or null | No       | Never fabricated - only from real data         |
-| `contact_email`    | string or null | No       | Never fabricated - only from real data         |
+| Field              | Type                      | Required | Notes                                          |
+|--------------------|---------------------------|----------|------------------------------------------------|
+| `id`               | string                    | **Yes**  | Unique canonical identifier                     |
+| `title`            | string                    | **Yes**  | Opportunity title                               |
+| `organization`     | string                    | **Yes**  | Organization or sponsoring body                |
+| `opportunity_type` | string                    | **Yes**  | e.g. research, internship, job, fellowship    |
+| `description`      | string                    | **Yes**  | Opportunity description                         |
+| `source_url`       | string                    | **Yes**  | Canonical link to opportunity listing          |
+| `source_name`      | string or null            | No       | Origin source name                             |
+| `source_age`       | string or null            | No       | Age / posting date indicator                   |
+| `active`           | boolean                   | No       | Defaults to `true`                             |
+| `first_seen_at`    | datetime or null          | No       | Ingestion timestamp                            |
+| `last_seen_at`     | datetime or null          | No       | Refresh timestamp                              |
+| `skills`           | list[string]              | No       | Defaults to `[]`                               |
+| `interests`        | list[string]              | No       | Defaults to `[]`                               |
+| `eligibility`      | list[string]              | No       | Defaults to `[]`                               |
+| `majors`           | list[string]              | No       | Target majors                                  |
+| `class_years`      | list[string]              | No       | Eligible academic standings                    |
+| `school_restrictions` | list[string]           | No       | College/school constraints                     |
+| `eligibility_notes`| list[string]              | No       | Explanatory eligibility criteria               |
+| `degree_levels`    | list[string]              | No       | Target degrees (BS, MS, PhD)                   |
+| `work_authorization_requirements` | list[string] | No    | Visa / work authorization                      |
+| `career_tracks`    | list[CareerTrackAffinity] | No       | AI-classified track weights                    |
+| `location`         | string or null            | No       | Campus or geographic location                  |
+| `remote_status`    | string or null            | No       | `remote`, `hybrid`, or `in_person`             |
+| `time_commitment`  | string or null            | No       | Hours per week                                 |
+| `compensation`     | string or null            | No       | e.g. Unpaid, Paid, Stipend                     |
+| `deadline`         | string or null            | No       | ISO 8601 date string                           |
+| `apply_url`        | string or null            | No       | Verified application link                      |
+| `contact_name`     | string or null            | No       | Never fabricated - only authentic data         |
+| `contact_email`    | string or null            | No       | Never fabricated - only authentic data         |

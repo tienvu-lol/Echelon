@@ -34,4 +34,3 @@ def test_gemini() -> GeminiTestResponse:
             provider="gemini-agent-platform",
             response=str(exc),
         )
-

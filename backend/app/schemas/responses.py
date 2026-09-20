@@ -1,15 +1,18 @@
+from datetime import date, datetime
+
 from pydantic import BaseModel
-from typing import Optional
-from datetime import datetime, date
+
 
 class HealthResponse(BaseModel):
     status: str
+
 
 class ServiceTestResponse(BaseModel):
     service: str
     status: str
     message: str
-    details: Optional[dict] = None
+    details: dict | None = None
+
 
 class OpportunityCard(BaseModel):
     id: str
@@ -18,15 +21,17 @@ class OpportunityCard(BaseModel):
     opportunity_type: str
     description: str
     skills: list[str] = []
-    location: Optional[str] = None
-    paid: Optional[bool] = None
-    deadline: Optional[date] = None
-    apply_url: Optional[str] = None
-    explanation: Optional[str] = None
+    location: str | None = None
+    paid: bool | None = None
+    deadline: date | None = None
+    apply_url: str | None = None
+    explanation: str | None = None
+
 
 class RecommendationsResponse(BaseModel):
     student_id: str
     opportunities: list[OpportunityCard]
+
 
 class SwipeResponse(BaseModel):
     id: str
@@ -35,6 +40,7 @@ class SwipeResponse(BaseModel):
     direction: str
     created_at: datetime
 
+
 class ErrorResponse(BaseModel):
     error: str
-    detail: Optional[str] = None
+    detail: str | None = None

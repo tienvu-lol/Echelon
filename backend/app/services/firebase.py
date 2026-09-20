@@ -1,14 +1,18 @@
 """Firebase Authentication service."""
+
 import logging
+
 import firebase_admin
-from firebase_admin import credentials, auth
+from firebase_admin import auth, credentials
+
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+
 class FirebaseServiceError(Exception):
     """Raised when a Firebase operation fails."""
-    pass
+
 
 class FirebaseService:
     """Wrapper around Firebase Admin SDK for authentication."""
@@ -20,7 +24,7 @@ class FirebaseService:
         """Initializes the Firebase Admin SDK if not already initialized."""
         if cls._initialized:
             return
-            
+
         try:
             # Check if default app is already initialized to prevent ValueError during tests
             try:
@@ -39,17 +43,18 @@ class FirebaseService:
             cls._initialized = True
         except Exception as e:
             logger.error(f"Failed to initialize Firebase Admin SDK: {e}")
-            raise FirebaseServiceError("Failed to initialize authentication service.") from e
+            raise FirebaseServiceError(
+                "Failed to initialize authentication service."
+            ) from e
 
     @staticmethod
     def verify_token(id_token: str) -> dict:
         """Verifies a Firebase ID token and returns the decoded token."""
         FirebaseService.initialize()
-        
+
         try:
             decoded_token = auth.verify_id_token(id_token)
             return decoded_token
         except Exception as e:
             logger.error(f"Firebase token verification failed: {e}")
             raise FirebaseServiceError("Invalid or expired authentication token") from e
-
