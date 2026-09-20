@@ -8,6 +8,13 @@ public final class APIService {
     
     private init() {}
     
+    // MARK: - Auth Header Helper
+    private func applyAuthHeader(to request: inout URLRequest) async {
+        if let token = await AuthService.shared.getIDToken() {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+    }
+    
     // MARK: - Health Check
     public func healthCheck() async throws -> HealthResponse {
         guard let url = URL(string: "\(baseURL)/health") else {
@@ -26,7 +33,6 @@ public final class APIService {
         
         var components = URLComponents(string: "\(baseURL)/api/opportunities/recommendations")
         components?.queryItems = [
-            URLQueryItem(name: "student_id", value: studentId),
             URLQueryItem(name: "limit", value: "\(limit)")
         ]
         
@@ -37,12 +43,34 @@ public final class APIService {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.timeoutInterval = 8.0
+        await applyAuthHeader(to: &request)
         
         do {
             let (data, response) = try await session.data(for: request)
             try validateResponse(response)
             
-            // Attempt to decode OpportunityBatch first
+            // 1. Attempt to decode backend RecommendationsResponse (nested opportunity item format)
+            if let recResponse = try? JSONDecoder().decode(BackendRecommendationsResponse.self, from: data) {
+                let mappedCards = recResponse.opportunities.compactMap { item -> OpportunityCard? in
+                    guard var card = item.opportunity else { return nil }
+                    if let score = item.score {
+                        card.matchPercentage = score
+                    }
+                    if let reason = item.matchReason {
+                        card.explanation = reason
+                    }
+                    return card
+                }
+                let sliced = Array(mappedCards.prefix(limit))
+                return OpportunityBatch(
+                    opportunities: sliced,
+                    canRefresh: MatchStore.shared.canRefresh,
+                    refreshesRemaining: MatchStore.shared.refreshesRemaining,
+                    nextRefreshAvailableAt: MatchStore.shared.nextRefreshAvailableAt
+                )
+            }
+            
+            // 2. Attempt to decode OpportunityBatch direct format
             if let batch = try? JSONDecoder().decode(OpportunityBatch.self, from: data) {
                 MatchStore.shared.updateRateLimit(
                     canRefresh: batch.canRefresh,
@@ -52,7 +80,7 @@ public final class APIService {
                 return batch
             }
             
-            // If backend returned raw array of OpportunityCard
+            // 3. Attempt to decode raw array of OpportunityCard
             let cards = try JSONDecoder().decode([OpportunityCard].self, from: data)
             let currentOpps = Array(cards.prefix(limit))
             return OpportunityBatch(
@@ -88,6 +116,7 @@ public final class APIService {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = 6.0
+        await applyAuthHeader(to: &request)
         
         let body: [String: Any] = [
             "student_id": studentId,
@@ -121,6 +150,7 @@ public final class APIService {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = 6.0
+        await applyAuthHeader(to: &request)
         
         let body: [String: Any] = [
             "student_id": studentId,
@@ -137,43 +167,62 @@ public final class APIService {
         }
     }
     
-    // MARK: - AI Opportunity Chatbot
+    // MARK: - AI Opportunity Chatbot & Conversational Agent
     public func sendChatMessage(
         opportunityId: String,
         studentId: String,
         message: String,
         context: OpportunityChatContext
     ) async throws -> String {
-        guard let url = URL(string: "\(baseURL)/api/opportunities/\(opportunityId)/chat") else {
-            throw APIError.invalidURL
-        }
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 12.0
-        
-        let payload: [String: Any] = [
-            "opportunity_id": opportunityId,
-            "student_id": studentId,
-            "message": message,
-            "opportunity_title": context.opportunityTitle,
-            "organization": context.organization
-        ]
-        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
-        
-        do {
-            let (data, response) = try await session.data(for: request)
-            try validateResponse(response)
-            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let reply = json["reply"] as? String ?? json["message"] as? String {
-                return reply
+        // First try backend agent conversational endpoint: /api/agent/chat
+        if let agentUrl = URL(string: "\(baseURL)/api/agent/chat") {
+            var agentRequest = URLRequest(url: agentUrl)
+            agentRequest.httpMethod = "POST"
+            agentRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            agentRequest.timeoutInterval = 10.0
+            await applyAuthHeader(to: &agentRequest)
+            
+            let agentPayload: [String: Any] = ["message": message]
+            if let agentData = try? JSONSerialization.data(withJSONObject: agentPayload) {
+                agentRequest.httpBody = agentData
+                if let (data, resp) = try? await session.data(for: agentRequest),
+                   let http = resp as? HTTPURLResponse, (200...299).contains(http.statusCode),
+                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let reply = json["reply"] as? String, !reply.isEmpty {
+                    return reply
+                }
             }
-            return String(data: data, encoding: .utf8) ?? "I received your question and am analyzing this opportunity."
-        } catch {
-            // Intelligent local AI simulation when Databricks backend is offline
-            try await Task.sleep(nanoseconds: 750_000_000) // 0.75s latency feel
-            return generateLocalChatResponse(message: message, context: context)
         }
+        
+        // Second try opportunity-scoped chat route
+        if let oppUrl = URL(string: "\(baseURL)/api/opportunities/\(opportunityId)/chat") {
+            var request = URLRequest(url: oppUrl)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.timeoutInterval = 8.0
+            await applyAuthHeader(to: &request)
+            
+            let payload: [String: Any] = [
+                "opportunity_id": opportunityId,
+                "student_id": studentId,
+                "message": message,
+                "opportunity_title": context.opportunityTitle,
+                "organization": context.organization
+            ]
+            if let bodyData = try? JSONSerialization.data(withJSONObject: payload) {
+                request.httpBody = bodyData
+                if let (data, resp) = try? await session.data(for: request),
+                   let http = resp as? HTTPURLResponse, (200...299).contains(http.statusCode),
+                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let reply = json["reply"] as? String ?? json["message"] as? String, !reply.isEmpty {
+                    return reply
+                }
+            }
+        }
+        
+        // Intelligent local fallback with real context
+        try await Task.sleep(nanoseconds: 600_000_000)
+        return generateLocalChatResponse(message: message, context: context)
     }
     
     private func generateLocalChatResponse(message: String, context: OpportunityChatContext) -> String {
@@ -206,9 +255,9 @@ public final class APIService {
         }
     }
     
-    // MARK: - Resume Parsing (PDF Upload)
+    // MARK: - Resume Parsing (PDF Upload to /api/profile/parse)
     public func parseResume(pdfData: Data, fileName: String) async throws -> ParsedResumeData {
-        guard let url = URL(string: "\(baseURL)/api/resumes/parse") else {
+        guard let url = URL(string: "\(baseURL)/api/profile/parse") else {
             throw APIError.invalidURL
         }
         
@@ -216,11 +265,12 @@ public final class APIService {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 15.0
+        request.timeoutInterval = 20.0
+        await applyAuthHeader(to: &request)
         
         var body = Data()
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(fileName)\"\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"resume\"; filename=\"\(fileName)\"\r\n".data(using: .utf8)!)
         body.append("Content-Type: application/pdf\r\n\r\n".data(using: .utf8)!)
         body.append(pdfData)
         body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
@@ -252,13 +302,25 @@ public final class APIService {
     
     // MARK: - Student Profile Updates & Account Deletion
     public func updateStudentProfile(studentId: String, profile: StudentProfile) async throws {
-        guard let url = URL(string: "\(baseURL)/api/students/\(studentId)/profile") else {
+        guard let url = URL(string: "\(baseURL)/api/profile") else {
             throw APIError.invalidURL
         }
         var request = URLRequest(url: url)
-        request.httpMethod = "PUT"
+        request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(profile)
+        request.timeoutInterval = 8.0
+        await applyAuthHeader(to: &request)
+        
+        let payload: [String: Any] = [
+            "major": profile.major,
+            "graduation_year": profile.graduationYear,
+            "skills": profile.skills,
+            "interests": profile.skills,
+            "coursework": profile.coursework,
+            "experience": profile.experience,
+            "bio": profile.bio ?? ""
+        ]
+        request.httpBody = try? JSONSerialization.data(withJSONObject: payload)
         
         do {
             let (_, response) = try await session.data(for: request)
@@ -274,6 +336,7 @@ public final class APIService {
         }
         var request = URLRequest(url: url)
         request.httpMethod = "DELETE"
+        await applyAuthHeader(to: &request)
         
         do {
             let (_, response) = try await session.data(for: request)
@@ -304,6 +367,29 @@ public final class APIService {
         guard (200...299).contains(httpResponse.statusCode) else {
             throw APIError.serverError(statusCode: httpResponse.statusCode)
         }
+    }
+}
+
+// MARK: - Helper Decoding Wrappers for Backend Models
+private struct BackendRecommendationsResponse: Decodable {
+    let studentId: String?
+    let opportunities: [BackendRecommendationItem]
+    
+    enum CodingKeys: String, CodingKey {
+        case studentId = "student_id"
+        case opportunities
+    }
+}
+
+private struct BackendRecommendationItem: Decodable {
+    let opportunity: OpportunityCard?
+    let score: Int?
+    let matchReason: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case opportunity
+        case score
+        case matchReason = "match_reason"
     }
 }
 

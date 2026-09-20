@@ -71,6 +71,7 @@ public struct ParsedResumeData: Codable, Equatable, Hashable {
         case name, email, university, major, minor, degree, gpa, skills, coursework, experience
         case phoneNumber = "phone_number"
         case graduationYear = "graduation_year"
+        case classYear = "class_year"
     }
 
     public init(
@@ -99,6 +100,57 @@ public struct ParsedResumeData: Codable, Equatable, Hashable {
         self.skills = skills
         self.coursework = coursework
         self.experience = experience
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.name = try container.decodeIfPresent(String.self, forKey: .name)
+        self.email = try container.decodeIfPresent(String.self, forKey: .email)
+        self.phoneNumber = try container.decodeIfPresent(String.self, forKey: .phoneNumber)
+        self.university = try container.decodeIfPresent(String.self, forKey: .university)
+        self.major = try container.decodeIfPresent(String.self, forKey: .major)
+        self.minor = try container.decodeIfPresent(String.self, forKey: .minor)
+        self.degree = try container.decodeIfPresent(String.self, forKey: .degree)
+        self.gpa = try container.decodeIfPresent(Double.self, forKey: .gpa)
+        self.skills = try container.decodeIfPresent([String].self, forKey: .skills)
+        self.coursework = try container.decodeIfPresent([String].self, forKey: .coursework)
+        self.experience = try container.decodeIfPresent([String].self, forKey: .experience)
+
+        if let gradInt = try? container.decodeIfPresent(Int.self, forKey: .graduationYear) {
+            self.graduationYear = gradInt
+        } else if let gradStr = try? container.decodeIfPresent(String.self, forKey: .graduationYear), let parsed = Int(gradStr) {
+            self.graduationYear = parsed
+        } else if let classYearStr = try? container.decodeIfPresent(String.self, forKey: .classYear) {
+            if let yearInt = Int(classYearStr) {
+                self.graduationYear = yearInt
+            } else {
+                switch classYearStr.lowercased() {
+                case "freshman": self.graduationYear = 2029
+                case "sophomore": self.graduationYear = 2028
+                case "junior": self.graduationYear = 2027
+                case "senior": self.graduationYear = 2026
+                default: self.graduationYear = 2027
+                }
+            }
+        } else {
+            self.graduationYear = nil
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(name, forKey: .name)
+        try container.encodeIfPresent(email, forKey: .email)
+        try container.encodeIfPresent(phoneNumber, forKey: .phoneNumber)
+        try container.encodeIfPresent(university, forKey: .university)
+        try container.encodeIfPresent(major, forKey: .major)
+        try container.encodeIfPresent(minor, forKey: .minor)
+        try container.encodeIfPresent(degree, forKey: .degree)
+        try container.encodeIfPresent(graduationYear, forKey: .graduationYear)
+        try container.encodeIfPresent(gpa, forKey: .gpa)
+        try container.encodeIfPresent(skills, forKey: .skills)
+        try container.encodeIfPresent(coursework, forKey: .coursework)
+        try container.encodeIfPresent(experience, forKey: .experience)
     }
 }
 
@@ -162,6 +214,7 @@ public struct StudentProfile: Codable, Identifiable, Equatable {
         case id, name, email, university, major, minor, degree, gpa, skills, coursework, experience, interests, fields, bio
         case phoneNumber = "phone_number"
         case graduationYear = "graduation_year"
+        case classYear = "class_year"
         case workModePreferences = "work_mode_preferences"
         case locationPreferences = "location_preferences"
         case compensationPreference = "compensation_preference"
@@ -217,6 +270,77 @@ public struct StudentProfile: Codable, Identifiable, Equatable {
         self.resume = resume
         self.createdAt = createdAt
     }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = (try? container.decodeIfPresent(String.self, forKey: .id)) ?? UUID().uuidString
+        self.name = try container.decodeIfPresent(String.self, forKey: .name)
+        self.email = try container.decodeIfPresent(String.self, forKey: .email)
+        self.phoneNumber = try container.decodeIfPresent(String.self, forKey: .phoneNumber)
+        self.university = (try? container.decodeIfPresent(String.self, forKey: .university)) ?? "Virginia Tech"
+        self.major = (try? container.decodeIfPresent(String.self, forKey: .major)) ?? "Computer Science"
+        self.minor = try container.decodeIfPresent(String.self, forKey: .minor)
+        self.degree = (try? container.decodeIfPresent(String.self, forKey: .degree)) ?? "Bachelor of Science"
+        self.gpa = try container.decodeIfPresent(Double.self, forKey: .gpa) ?? 3.8
+        self.skills = (try? container.decodeIfPresent([String].self, forKey: .skills)) ?? []
+        self.coursework = (try? container.decodeIfPresent([String].self, forKey: .coursework)) ?? []
+        self.experience = (try? container.decodeIfPresent([String].self, forKey: .experience)) ?? []
+        self.interests = (try? container.decodeIfPresent([String].self, forKey: .interests)) ?? ["Internship", "Research"]
+        self.fields = (try? container.decodeIfPresent([String].self, forKey: .fields)) ?? ["Software Engineering", "AI/ML"]
+        self.workModePreferences = (try? container.decodeIfPresent([String].self, forKey: .workModePreferences)) ?? ["Hybrid", "Remote", "In-Person"]
+        self.locationPreferences = (try? container.decodeIfPresent([String].self, forKey: .locationPreferences)) ?? ["San Francisco, CA", "New York, NY", "Remote"]
+        self.compensationPreference = try container.decodeIfPresent(String.self, forKey: .compensationPreference) ?? "$40/hr+"
+        self.bio = try container.decodeIfPresent(String.self, forKey: .bio)
+        self.profilePictureUrl = try container.decodeIfPresent(String.self, forKey: .profilePictureUrl)
+        self.resume = try container.decodeIfPresent(Resume.self, forKey: .resume)
+        self.createdAt = try container.decodeIfPresent(String.self, forKey: .createdAt)
+
+        if let gradInt = try? container.decodeIfPresent(Int.self, forKey: .graduationYear) {
+            self.graduationYear = gradInt
+        } else if let gradStr = try? container.decodeIfPresent(String.self, forKey: .graduationYear), let parsed = Int(gradStr) {
+            self.graduationYear = parsed
+        } else if let classYearStr = try? container.decodeIfPresent(String.self, forKey: .classYear) {
+            if let yearInt = Int(classYearStr) {
+                self.graduationYear = yearInt
+            } else {
+                switch classYearStr.lowercased() {
+                case "freshman": self.graduationYear = 2029
+                case "sophomore": self.graduationYear = 2028
+                case "junior": self.graduationYear = 2027
+                case "senior": self.graduationYear = 2026
+                default: self.graduationYear = 2027
+                }
+            }
+        } else {
+            self.graduationYear = 2027
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encodeIfPresent(name, forKey: .name)
+        try container.encodeIfPresent(email, forKey: .email)
+        try container.encodeIfPresent(phoneNumber, forKey: .phoneNumber)
+        try container.encodeIfPresent(university, forKey: .university)
+        try container.encode(major, forKey: .major)
+        try container.encodeIfPresent(minor, forKey: .minor)
+        try container.encodeIfPresent(degree, forKey: .degree)
+        try container.encode(graduationYear, forKey: .graduationYear)
+        try container.encodeIfPresent(gpa, forKey: .gpa)
+        try container.encode(skills, forKey: .skills)
+        try container.encode(coursework, forKey: .coursework)
+        try container.encode(experience, forKey: .experience)
+        try container.encode(interests, forKey: .interests)
+        try container.encode(fields, forKey: .fields)
+        try container.encode(workModePreferences, forKey: .workModePreferences)
+        try container.encode(locationPreferences, forKey: .locationPreferences)
+        try container.encodeIfPresent(compensationPreference, forKey: .compensationPreference)
+        try container.encodeIfPresent(bio, forKey: .bio)
+        try container.encodeIfPresent(profilePictureUrl, forKey: .profilePictureUrl)
+        try container.encodeIfPresent(resume, forKey: .resume)
+        try container.encodeIfPresent(createdAt, forKey: .createdAt)
+    }
 }
 
 // MARK: - Opportunity Card Model
@@ -238,11 +362,11 @@ public struct OpportunityCard: Codable, Identifiable, Equatable, Hashable {
     public let paid: Bool?
     public let deadline: String?
     public let applyUrl: String?
-    public let explanation: String?
+    public var explanation: String?
     public let compensation: String?
     public let duration: String?
     public let startDate: String?
-    public let matchPercentage: Int?
+    public var matchPercentage: Int?
     public let matchAnalysis: MatchAnalysis?
     public let imageUrl: String?
     public let organizationLogoUrl: String?
