@@ -36,7 +36,7 @@ public enum APIError: LocalizedError {
 public final class APIService {
     public static let shared = APIService()
     
-    public var baseURL = "http://localhost:8000"
+    public var baseURL = "http://172.30.65.137:8000"
     private let session = URLSession.shared
     
     private init() {}
@@ -59,7 +59,7 @@ public final class APIService {
     }
     
     // MARK: - Recommendations (Databricks + Gemini Pipeline)
-    public func getRecommendations(limit: Int = 10) async throws -> RecommendationsResponse {
+    public func getRecommendations(limit: Int = 7) async throws -> RecommendationsResponse {
         var components = URLComponents(string: "\(baseURL)/api/opportunities/recommendations")
         components?.queryItems = [
             URLQueryItem(name: "limit", value: "\(limit)")
@@ -97,46 +97,66 @@ public final class APIService {
     
     // MARK: - Opportunity Batch Recommendations (Batches of 7)
     public func getOpportunityBatch(studentId: String, limit: Int = 7, isRefresh: Bool = false) async throws -> OpportunityBatch {
-        if isRefresh {
-            MatchStore.shared.recordManualRefresh()
+        await MainActor.run {
+            MatchStore.shared.evaluateRateLimit()
         }
+        
+        var fetchedCards: [OpportunityCard] = []
         
         do {
             let recResponse = try await getRecommendations(limit: limit)
-            let cards = recResponse.opportunities.map { $0.card }
-            return OpportunityBatch(
-                opportunities: Array(cards.prefix(limit)),
+            fetchedCards = recResponse.opportunities.map { $0.card }
+        } catch {
+            // Direct fetch attempt if direct OpportunityBatch returned
+            if var components = URLComponents(string: "\(baseURL)/api/opportunities/recommendations") {
+                components.queryItems = [URLQueryItem(name: "limit", value: "\(limit)")]
+                if let url = components.url {
+                    var request = URLRequest(url: url)
+                    request.httpMethod = "GET"
+                    request.timeoutInterval = 4.0
+                    await applyAuthHeader(to: &request)
+                    
+                    if let (data, response) = try? await session.data(for: request),
+                       let httpResponse = response as? HTTPURLResponse,
+                       (200...299).contains(httpResponse.statusCode) {
+                        if let batch = try? JSONDecoder().decode(OpportunityBatch.self, from: data), !batch.opportunities.isEmpty {
+                            fetchedCards = batch.opportunities
+                        } else if let directCards = try? JSONDecoder().decode([OpportunityCard].self, from: data), !directCards.isEmpty {
+                            fetchedCards = directCards
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Filter out already swiped/matched opportunities
+        let validCards = await MainActor.run { () -> [OpportunityCard] in
+            let swipedIds = Set(MatchStore.shared.notAppliedMatches.map { $0.opportunity.id })
+                .union(MatchStore.shared.appliedMatches.map { $0.opportunity.id })
+                .union(MatchStore.shared.passedOpportunityIds)
+            let unswiped = fetchedCards.filter { !swipedIds.contains($0.id) }
+            
+            // If backend returned empty cards or failed (e.g. brand new account, offline backend),
+            // fallback to our robust curated opportunity catalog!
+            if unswiped.isEmpty {
+                return MatchStore.shared.getFallbackBatch(limit: limit)
+            }
+            return Array(unswiped.prefix(limit))
+        }
+        
+        if isRefresh && !validCards.isEmpty {
+            await MainActor.run {
+                MatchStore.shared.recordManualRefresh()
+            }
+        }
+        
+        return await MainActor.run {
+            OpportunityBatch(
+                opportunities: validCards,
                 canRefresh: MatchStore.shared.canRefresh,
                 refreshesRemaining: MatchStore.shared.refreshesRemaining,
                 nextRefreshAvailableAt: MatchStore.shared.nextRefreshAvailableAt
             )
-        } catch {
-            // Direct fetch attempt if direct OpportunityBatch returned
-            guard var components = URLComponents(string: "\(baseURL)/api/opportunities/recommendations") else {
-                throw error
-            }
-            components.queryItems = [URLQueryItem(name: "limit", value: "\(limit)")]
-            guard let url = components.url else { throw error }
-            var request = URLRequest(url: url)
-            request.httpMethod = "GET"
-            request.timeoutInterval = 10.0
-            await applyAuthHeader(to: &request)
-            
-            let (data, response) = try await session.data(for: request)
-            try validateResponse(response)
-            
-            if let batch = try? JSONDecoder().decode(OpportunityBatch.self, from: data) {
-                return batch
-            }
-            if let directCards = try? JSONDecoder().decode([OpportunityCard].self, from: data) {
-                return OpportunityBatch(
-                    opportunities: Array(directCards.prefix(limit)),
-                    canRefresh: MatchStore.shared.canRefresh,
-                    refreshesRemaining: MatchStore.shared.refreshesRemaining,
-                    nextRefreshAvailableAt: MatchStore.shared.nextRefreshAvailableAt
-                )
-            }
-            throw error
         }
     }
     
@@ -298,28 +318,39 @@ public final class APIService {
     
     // MARK: - Resume Parsing (PDF Upload to /api/profile/parse)
     public func parseResume(pdfData: Data, fileName: String) async throws -> ParsedResumeData {
-        guard let url = URL(string: "\(baseURL)/api/profile/parse") else {
-            throw APIError.invalidURL
+        for fieldName in ["resume", "file"] {
+            guard let url = URL(string: "\(baseURL)/api/profile/parse") else {
+                throw APIError.invalidURL
+            }
+            
+            let boundary = "Boundary-\(UUID().uuidString)"
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+            request.timeoutInterval = 30.0
+            await applyAuthHeader(to: &request)
+            
+            var body = Data()
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"\(fieldName)\"; filename=\"\(fileName)\"\r\n".data(using: .utf8)!)
+            body.append("Content-Type: application/pdf\r\n\r\n".data(using: .utf8)!)
+            body.append(pdfData)
+            body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
+            request.httpBody = body
+            
+            if let (data, response) = try? await session.data(for: request),
+               let http = response as? HTTPURLResponse {
+                if (200...299).contains(http.statusCode) {
+                    if let parsed = try? JSONDecoder().decode(ParsedResumeData.self, from: data) {
+                        return parsed
+                    }
+                }
+                if http.statusCode != 422 && fieldName == "file" {
+                    try validateResponse(response)
+                }
+            }
         }
-        
-        let boundary = "Boundary-\(UUID().uuidString)"
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 30.0
-        await applyAuthHeader(to: &request)
-        
-        var body = Data()
-        body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"resume\"; filename=\"\(fileName)\"\r\n".data(using: .utf8)!)
-        body.append("Content-Type: application/pdf\r\n\r\n".data(using: .utf8)!)
-        body.append(pdfData)
-        body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
-        request.httpBody = body
-        
-        let (data, response) = try await session.data(for: request)
-        try validateResponse(response)
-        return try JSONDecoder().decode(ParsedResumeData.self, from: data)
+        throw APIError.serverError(statusCode: 500)
     }
     
     // MARK: - Fetch Current Profile from Backend / Databricks
@@ -344,30 +375,61 @@ public final class APIService {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 8.0
+        request.timeoutInterval = 12.0
         await applyAuthHeader(to: &request)
         
-        let payload: [String: Any] = [
+        var payload: [String: Any] = [
+            "name": profile.name ?? "",
+            "university": profile.university ?? "",
+            "degree": profile.degree ?? "",
             "major": profile.major,
+            "minor": profile.minor ?? "",
             "graduation_year": profile.graduationYear,
+            "gpa": profile.gpa ?? 0.0,
             "skills": profile.skills,
-            "interests": profile.skills,
+            "interests": profile.interests,
             "coursework": profile.coursework,
             "experience": profile.experience,
+            "work_mode_preferences": profile.workModePreferences,
+            "location_preferences": profile.locationPreferences,
             "bio": profile.bio ?? ""
         ]
-        request.httpBody = try? JSONSerialization.data(withJSONObject: payload)
+        if let comp = profile.compensationPreference {
+            payload["compensation_preference"] = comp
+        }
+        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
         
-        let (_, response) = try await session.data(for: request)
-        try validateResponse(response)
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        guard (200...299).contains(httpResponse.statusCode) else {
+            let errorMsg = String(data: data, encoding: .utf8) ?? "Server error (\(httpResponse.statusCode))"
+            throw APIError.requestFailed(statusCode: httpResponse.statusCode, message: errorMsg)
+        }
     }
     
     public func deleteAccount(studentId: String) async throws {
+        // First try DELETE /api/profile with Bearer token
+        if let url = URL(string: "\(baseURL)/api/profile") {
+            var request = URLRequest(url: url)
+            request.httpMethod = "DELETE"
+            request.timeoutInterval = 10.0
+            await applyAuthHeader(to: &request)
+            
+            if let (_, response) = try? await session.data(for: request),
+               let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) {
+                return
+            }
+        }
+        
+        // Fallback: DELETE /api/students/{studentId}
         guard let url = URL(string: "\(baseURL)/api/students/\(studentId)") else {
             throw APIError.invalidURL
         }
         var request = URLRequest(url: url)
         request.httpMethod = "DELETE"
+        request.timeoutInterval = 10.0
         await applyAuthHeader(to: &request)
         
         let (_, response) = try await session.data(for: request)

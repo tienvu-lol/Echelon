@@ -192,6 +192,41 @@ public final class MatchStore: ObservableObject {
         }
     }
     
+    // MARK: - Fallback / Local Deck Management
+    public func getFallbackBatch(limit: Int = 7) -> [OpportunityCard] {
+        let swipedIds = Set(notAppliedMatches.map { $0.opportunity.id })
+            .union(appliedMatches.map { $0.opportunity.id })
+            .union(passedOpportunityIds)
+        
+        let allCatalog = OpportunityCard.mockDeck
+        var available = allCatalog.filter { !swipedIds.contains($0.id) }
+        
+        // If remaining unseen cards are fewer than the requested batch size,
+        // recycle passed cards so users have an endless discovery experience.
+        if available.count < limit {
+            if !passedOpportunityIds.isEmpty {
+                passedOpportunityIds.removeAll()
+                saveState()
+                let remainingSwiped = Set(notAppliedMatches.map { $0.opportunity.id })
+                    .union(appliedMatches.map { $0.opportunity.id })
+                available = allCatalog.filter { !remainingSwiped.contains($0.id) }
+            }
+            
+            // If still fewer than limit (e.g., user matched everything in catalog),
+            // generate fresh unique IDs so they can continue testing & swiping.
+            if available.count < limit {
+                let recycled = allCatalog.shuffled().prefix(limit).map { card -> OpportunityCard in
+                    var freshCard = card
+                    freshCard.id = "fresh-\(UUID().uuidString.prefix(8))"
+                    return freshCard
+                }
+                return Array(recycled)
+            }
+        }
+        
+        return Array(available.prefix(limit))
+    }
+    
     // MARK: - Rate Limiting Management
     
     public func updateRateLimit(canRefresh: Bool, refreshesRemaining: Int, nextRefreshAvailableAt: Date?) {

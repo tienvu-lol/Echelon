@@ -838,8 +838,12 @@ public struct ProfileSettingsView: View {
     }
     
     private func handleResumePicked(url: URL) {
-        guard url.startAccessingSecurityScopedResource() else { return }
-        defer { url.stopAccessingSecurityScopedResource() }
+        let accessing = url.startAccessingSecurityScopedResource()
+        defer {
+            if accessing {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
         
         let fileName = url.lastPathComponent
         self.resumeFileName = fileName

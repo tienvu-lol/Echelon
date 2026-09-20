@@ -39,7 +39,11 @@ class ExploreViewController: UIViewController, OpportunityCardDelegate {
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         MatchStore.shared.evaluateRateLimit()
-        updateBatchCompleteStateIfNeeded()
+        if batchOpportunities.isEmpty && cardViews.isEmpty && !isLoadingBatch {
+            fetchBatch(isRefresh: false)
+        } else {
+            updateBatchCompleteStateIfNeeded()
+        }
     }
     
     // MARK: - Setup UI
@@ -226,14 +230,20 @@ class ExploreViewController: UIViewController, OpportunityCardDelegate {
                 await MainActor.run {
                     self.isLoadingBatch = false
                     self.loadingIndicator.stopAnimating()
-                    self.batchOpportunities = Array(batch.opportunities.prefix(self.batchSize))
+                    let cards = Array(batch.opportunities.prefix(self.batchSize))
+                    if cards.isEmpty {
+                        self.batchOpportunities = MatchStore.shared.getFallbackBatch(limit: self.batchSize)
+                    } else {
+                        self.batchOpportunities = cards
+                    }
                     self.renderCards()
                 }
             } catch {
                 await MainActor.run {
                     self.isLoadingBatch = false
                     self.loadingIndicator.stopAnimating()
-                    self.batchOpportunities = []
+                    let fallbackCards = MatchStore.shared.getFallbackBatch(limit: self.batchSize)
+                    self.batchOpportunities = fallbackCards
                     self.renderCards()
                 }
             }
@@ -287,7 +297,7 @@ class ExploreViewController: UIViewController, OpportunityCardDelegate {
     
     // MARK: - End-of-Batch & Rate Limit State
     private func updateBatchCompleteStateIfNeeded() {
-        guard batchOpportunities.isEmpty && !isLoadingBatch else { return }
+        guard batchOpportunities.isEmpty && cardViews.isEmpty && !isLoadingBatch else { return }
         
         cardDeckContainer.isHidden = true
         statusContainerView.isHidden = false

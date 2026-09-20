@@ -515,7 +515,7 @@ public struct StudentProfile: Codable, Identifiable, Equatable {
 // MARK: - Opportunity Card Model
 
 public struct OpportunityCard: Codable, Identifiable, Equatable, Hashable {
-    public let id: String
+    public var id: String
     public let title: String
     public let organization: String
     public let opportunityType: String
@@ -1210,6 +1210,594 @@ extension OpportunityCard {
             imageUrl: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&auto=format&fit=crop&q=80",
             companyLogoName: "bolt.fill",
             accentHex: "#6366F1"
+        ),
+        OpportunityCard(
+            id: "opp-8",
+            title: "AI Alignment & Safety Fellow",
+            organization: "OpenAI",
+            opportunityType: "Fellowship",
+            description: "Research alignment techniques, RLHF, and constitutional safety boundaries for frontier multimodal reasoning models.",
+            fullDescription: "Join the OpenAI Safety & Alignment team. You will research automated alignment verification, reinforcement learning from human and AI feedback (RLHF/RLAIF), and interpretability methods to ensure frontier models remain helpful and safe.",
+            skills: ["Python", "PyTorch", "RLHF", "Transformers"],
+            preferredSkills: ["JAX", "Distributed Training", "CUDA"],
+            qualifications: [
+                "Pursuing a degree in Computer Science, Machine Learning, or related field",
+                "Strong theoretical grounding in reinforcement learning and neural scaling",
+                "Experience reading and reproducing cutting-edge ML research papers"
+            ],
+            responsibilities: [
+                "Develop novel reward modeling and red-teaming benchmarks",
+                "Run fine-tuning experiments across large transformer architectures",
+                "Contribute to technical safety reports and academic publications"
+            ],
+            coursework: ["Machine Learning", "Deep Learning", "Probability & Statistics"],
+            location: "San Francisco, CA",
+            workMode: "Hybrid",
+            paid: true,
+            deadline: "Apr 20, 2027",
+            applyUrl: "https://openai.com/careers",
+            explanation: "Excellent fit for your ML theory and deep learning foundation",
+            compensation: "$11,500/mo",
+            duration: "16 weeks",
+            startDate: "June 2027",
+            matchPercentage: 93,
+            matchAnalysis: MatchAnalysis(
+                overallMatch: 93,
+                skillsMatch: 95,
+                courseworkMatch: 92,
+                experienceMatch: 90,
+                preferencesMatch: 95,
+                explanation: "Strong alignment with your deep learning and PyTorch background."
+            ),
+            imageUrl: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80",
+            companyLogoName: "sparkles.rectangle.stack",
+            accentHex: "#10A37F"
+        ),
+        OpportunityCard(
+            id: "opp-9",
+            title: "Quantitative Trading Systems Intern",
+            organization: "Citadel",
+            opportunityType: "Internship",
+            description: "Architect ultra-low-latency execution engines, algorithmic order routers, and distributed market simulation clusters.",
+            fullDescription: "As a Software Engineering Intern on Citadel's Core Execution platform, you will optimize latency-critical C++ infrastructure handling massive concurrent market data streams with sub-microsecond requirements.",
+            skills: ["C++", "Linux", "Low Latency", "Algorithms"],
+            preferredSkills: ["C++20", "Kernel Bypass", "Multi-threading"],
+            qualifications: [
+                "Degree in Computer Science, Computer Engineering, or Mathematics",
+                "Exceptional mastery of C++ memory management and cache optimization",
+                "Strong understanding of operating systems and networking"
+            ],
+            responsibilities: [
+                "Optimize critical trading paths for sub-microsecond throughput",
+                "Build hardware-accelerated telemetry and lock-free data structures",
+                "Collaborate with quantitative researchers to deploy automated strategies"
+            ],
+            coursework: ["Computer Systems", "Operating Systems", "Algorithms"],
+            location: "New York, NY",
+            workMode: "In-Person",
+            paid: true,
+            deadline: "Apr 25, 2027",
+            applyUrl: "https://www.citadel.com/careers",
+            explanation: "Great match for your low-level systems and high-throughput background",
+            compensation: "$14,000/mo",
+            duration: "12 weeks",
+            startDate: "May 2027",
+            matchPercentage: 90,
+            matchAnalysis: MatchAnalysis(
+                overallMatch: 90,
+                skillsMatch: 92,
+                courseworkMatch: 88,
+                experienceMatch: 88,
+                preferencesMatch: 92,
+                explanation: "Matches your systems architecture coursework and C++ proficiency."
+            ),
+            imageUrl: "https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?w=800&auto=format&fit=crop&q=80",
+            companyLogoName: "chart.xyaxis.line",
+            accentHex: "#0284C7"
+        ),
+        OpportunityCard(
+            id: "opp-10",
+            title: "Autopilot Computer Vision Intern",
+            organization: "Tesla",
+            opportunityType: "Internship",
+            description: "Develop end-to-end neural network models for occupancy networks, multi-camera tracking, and trajectory generation.",
+            fullDescription: "Join the Tesla Autopilot vision team. You will train multi-task vision models operating across eight cameras in real-time, processing petabytes of fleet video data for full self-driving capabilities.",
+            skills: ["Python", "C++", "PyTorch", "Computer Vision"],
+            preferredSkills: ["TensorRT", "CUDA", "Sensor Fusion"],
+            qualifications: [
+                "Enrolled in Computer Science, Electrical Engineering, or Robotics",
+                "Hands-on experience with modern convolutional and vision transformer architectures",
+                "Familiarity with training neural nets on large-scale distributed clusters"
+            ],
+            responsibilities: [
+                "Train 3D temporal vision networks for dynamic obstacle prediction",
+                "Benchmark and optimize model inference latency on Tesla custom FSD silicon",
+                "Validate model accuracy against tricky edge-case fleet interventions"
+            ],
+            coursework: ["Computer Vision", "Deep Learning", "Linear Algebra"],
+            location: "Palo Alto, CA",
+            workMode: "In-Person",
+            paid: true,
+            deadline: "May 01, 2027",
+            applyUrl: "https://www.tesla.com/careers",
+            explanation: "Directly matches your computer vision and autonomous robotics focus",
+            compensation: "$9,600/mo",
+            duration: "12 weeks",
+            startDate: "June 2027",
+            matchPercentage: 88,
+            matchAnalysis: MatchAnalysis(
+                overallMatch: 88,
+                skillsMatch: 90,
+                courseworkMatch: 86,
+                experienceMatch: 86,
+                preferencesMatch: 90,
+                explanation: "Your computer vision and perception projects align well with the Autopilot vision team."
+            ),
+            imageUrl: "https://images.unsplash.com/photo-1560958089-b8a1929cea89?w=800&auto=format&fit=crop&q=80",
+            companyLogoName: "bolt.car.fill",
+            accentHex: "#E11D48"
+        ),
+        OpportunityCard(
+            id: "opp-11",
+            title: "Cloud Systems & Kernel Research Intern",
+            organization: "Microsoft Research",
+            opportunityType: "Internship",
+            description: "Investigate next-generation virtualization, eBPF telemetry, and AI cluster networking topologies for Azure.",
+            fullDescription: "Microsoft Research Systems group explores the future of hyperscale cloud computing. You will research kernel optimizations, programmable switches (P4), and RDMA communication fabrics powering Azure AI supercomputers.",
+            skills: ["Rust", "C", "Linux Kernel", "Distributed Systems"],
+            preferredSkills: ["eBPF", "RDMA", "InfiniBand"],
+            qualifications: [
+                "Enrolled in an undergraduate or graduate degree in Computer Science",
+                "Knowledge of operating system fundamentals, memory subsystems, and drivers",
+                "Passion for foundational systems research"
+            ],
+            responsibilities: [
+                "Implement kernel bypass drivers for low-latency AI interconnects",
+                "Collect and analyze network congestion traces from multi-thousand GPU clusters",
+                "Write research papers and open source tools"
+            ],
+            coursework: ["Operating Systems", "Networking", "Computer Architecture"],
+            location: "Redmond, WA",
+            workMode: "Hybrid",
+            paid: true,
+            deadline: "May 15, 2027",
+            applyUrl: "https://www.microsoft.com/en-us/research/careers/",
+            explanation: "Great match for your operating systems and networking expertise",
+            compensation: "$10,000/mo",
+            duration: "12 weeks",
+            startDate: "June 2027",
+            matchPercentage: 85,
+            matchAnalysis: MatchAnalysis(
+                overallMatch: 85,
+                skillsMatch: 88,
+                courseworkMatch: 84,
+                experienceMatch: 80,
+                preferencesMatch: 88,
+                explanation: "Solid match for your systems coursework and systems programming experience."
+            ),
+            imageUrl: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800&auto=format&fit=crop&q=80",
+            companyLogoName: "server.rack",
+            accentHex: "#00A4EF"
+        ),
+        OpportunityCard(
+            id: "opp-12",
+            title: "Robotic Manipulation Research Fellow",
+            organization: "Stanford AI Lab",
+            opportunityType: "REU",
+            description: "Train diffusion-based vision-language-action (VLA) models for dexterous robotic manipulation and tactile feedback.",
+            fullDescription: "At the Stanford Artificial Intelligence Laboratory (SAIL), collaborate with top robotics faculty. You will work on real bimanual robot arms executing complex household and industrial manipulation tasks via imitation learning.",
+            skills: ["Python", "PyTorch", "Robotics", "Reinforcement Learning"],
+            preferredSkills: ["ROS2", "MuJoCo", "Tactile Sensing"],
+            qualifications: [
+                "Undergraduate student in STEM with strong interest in robotics",
+                "Proficiency in PyTorch and simulation environments (Isaac Gym / MuJoCo)",
+                "Previous experience with robot kinematics and control"
+            ],
+            responsibilities: [
+                "Collect teleoperated demonstration data using VR headsets",
+                "Train policy networks with behavioral cloning and diffusion objectives",
+                "Deploy and evaluate policies on physical robotic hardware testbeds"
+            ],
+            coursework: ["Robotics", "Reinforcement Learning", "Linear Algebra"],
+            location: "Stanford, CA",
+            workMode: "In-Person",
+            paid: true,
+            deadline: "May 20, 2027",
+            applyUrl: "https://ai.stanford.edu",
+            explanation: "High alignment with your robotics background and ML residency aspirations",
+            compensation: "$850/week",
+            duration: "10 weeks",
+            startDate: "June 2027",
+            matchPercentage: 92,
+            matchAnalysis: MatchAnalysis(
+                overallMatch: 92,
+                skillsMatch: 94,
+                courseworkMatch: 90,
+                experienceMatch: 90,
+                preferencesMatch: 94,
+                explanation: "Exceptional synergy between your robotics coursework and research focus."
+            ),
+            imageUrl: "https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=800&auto=format&fit=crop&q=80",
+            companyLogoName: "hand.raised.fill",
+            accentHex: "#8C1515"
+        ),
+        OpportunityCard(
+            id: "opp-13",
+            title: "Distributed Query Engine Intern",
+            organization: "Databricks",
+            opportunityType: "Internship",
+            description: "Work on the Photon vectorized query engine, Apache Spark internals, and large-scale data lakehouse storage.",
+            fullDescription: "Databricks engine team builds the core data processing runtime used by thousands of enterprises worldwide. You will write high-performance C++ vectorized execution primitives, query plan optimizers, and cache managers.",
+            skills: ["C++", "Scala", "Distributed Systems", "SQL"],
+            preferredSkills: ["LLVM", "SIMD", "Apache Arrow"],
+            qualifications: [
+                "Pursuing BS or MS in Computer Science or related engineering discipline",
+                "Solid understanding of database internals, compilers, or distributed systems",
+                "Strong grasp of concurrency and multithreading in C++"
+            ],
+            responsibilities: [
+                "Design vectorized operators leveraging AVX-512 and ARM Neon SIMD intrinsics",
+                "Profile memory latency and CPU cache misses on multi-terabyte analytical queries",
+                "Participate in daily architecture design reviews and benchmarks"
+            ],
+            coursework: ["Database Systems", "Compilers", "Distributed Computing"],
+            location: "San Francisco, CA",
+            workMode: "Hybrid",
+            paid: true,
+            deadline: "May 25, 2027",
+            applyUrl: "https://www.databricks.com/company/careers",
+            explanation: "Directly matches your distributed systems and high-throughput data focus",
+            compensation: "$10,800/mo",
+            duration: "12 weeks",
+            startDate: "May 2027",
+            matchPercentage: 87,
+            matchAnalysis: MatchAnalysis(
+                overallMatch: 87,
+                skillsMatch: 89,
+                courseworkMatch: 85,
+                experienceMatch: 85,
+                preferencesMatch: 89,
+                explanation: "Great match for your interest in large-scale distributed systems and data engineering."
+            ),
+            imageUrl: "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=800&auto=format&fit=crop&q=80",
+            companyLogoName: "cube.transparent.fill",
+            accentHex: "#FF3621"
+        ),
+        OpportunityCard(
+            id: "opp-14",
+            title: "Mission Software & Starship Guidance Intern",
+            organization: "SpaceX",
+            opportunityType: "Internship",
+            description: "Implement flight-critical guidance, navigation, and control (GNC) flight software for reusable orbital launch vehicles.",
+            fullDescription: "Join SpaceX Flight Software. You will write deterministic C++ code controlling Falcon and Starship vehicles during launch, orbit insertion, atmospheric reentry, and precision landing burns.",
+            skills: ["C++", "Python", "Flight Software", "Simulation"],
+            preferredSkills: ["Real-Time Linux", "Embedded Systems", "Aerospace GNC"],
+            qualifications: [
+                "Undergraduate student in Aerospace, Computer Science, or Computer Engineering",
+                "Strong proficiency in modern C++ and real-time computing constraints",
+                "US Citizenship or Permanent Resident status required by ITAR regulations"
+            ],
+            responsibilities: [
+                "Develop guidance and flight logic for multi-engine vehicle maneuvers",
+                "Execute hardware-in-the-loop (HITL) simulations testing fault tolerance",
+                "Collaborate with propulsion and structures engineering leads"
+            ],
+            coursework: ["Control Systems", "Physics", "Algorithms"],
+            location: "Hawthorne, CA",
+            workMode: "In-Person",
+            paid: true,
+            deadline: "May 30, 2027",
+            applyUrl: "https://www.spacex.com/careers",
+            explanation: "Matches your high-reliability systems and flight simulation background",
+            compensation: "$9,200/mo",
+            duration: "12 weeks",
+            startDate: "June 2027",
+            matchPercentage: 89,
+            matchAnalysis: MatchAnalysis(
+                overallMatch: 89,
+                skillsMatch: 90,
+                courseworkMatch: 88,
+                experienceMatch: 87,
+                preferencesMatch: 91,
+                explanation: "Strong fit for your physics, simulation, and real-time C++ background."
+            ),
+            imageUrl: "https://images.unsplash.com/photo-1517976487502-5f79e944c0dd?w=800&auto=format&fit=crop&q=80",
+            companyLogoName: "airplane.departure",
+            accentHex: "#475569"
+        ),
+        OpportunityCard(
+            id: "opp-15",
+            title: "Constitutional AI & Alignment Researcher",
+            organization: "Anthropic",
+            opportunityType: "Fellowship",
+            description: "Develop automated red-teaming protocols, interpretability probes, and constitutional principles for Claude models.",
+            fullDescription: "Anthropic is dedicated to building reliable, beneficial artificial intelligence. As a research fellow, you will investigate how neural network representations represent concepts like honesty, sycophancy, and tool safety.",
+            skills: ["Python", "PyTorch", "AI Safety", "NLP"],
+            preferredSkills: ["TransformerLens", "Mechanistic Interpretability", "RL"],
+            qualifications: [
+                "Degree in Computer Science, Philosophy of Mind, or Cognitive Science",
+                "Demonstrated track record of technical curiosity in AI safety",
+                "Solid coding fundamentals in PyTorch or JAX"
+            ],
+            responsibilities: [
+                "Train linear probes and dictionary learning models to extract internal features",
+                "Design automated prompt perturbations testing alignment robustness",
+                "Participate in weekly safety frontier discussions"
+            ],
+            coursework: ["Natural Language Processing", "Machine Learning", "Linear Algebra"],
+            location: "San Francisco, CA",
+            workMode: "Hybrid",
+            paid: true,
+            deadline: "Jun 05, 2027",
+            applyUrl: "https://www.anthropic.com/careers",
+            explanation: "High alignment with your AI safety and language modeling focus",
+            compensation: "$11,200/mo",
+            duration: "14 weeks",
+            startDate: "June 2027",
+            matchPercentage: 91,
+            matchAnalysis: MatchAnalysis(
+                overallMatch: 91,
+                skillsMatch: 92,
+                courseworkMatch: 90,
+                experienceMatch: 89,
+                preferencesMatch: 93,
+                explanation: "Great match for your NLP coursework and interest in frontier AI safety."
+            ),
+            imageUrl: "https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=800&auto=format&fit=crop&q=80",
+            companyLogoName: "brain.head.profile",
+            accentHex: "#D97706"
+        ),
+        OpportunityCard(
+            id: "opp-16",
+            title: "Generative AI TensorRT Intern",
+            organization: "NVIDIA",
+            opportunityType: "Internship",
+            description: "Optimize large language model inference pipelines and diffusion kernels on Blackwell GPU architectures.",
+            fullDescription: "Join NVIDIA's Deep Learning Software organization. You will optimize inference performance for state-of-the-art transformer models using TensorRT-LLM, FlashAttention-3, and FP4 quantization techniques.",
+            skills: ["CUDA", "C++", "Python", "GPU Computing"],
+            preferredSkills: ["Triton", "Cutlass", "Kernel Profiling"],
+            qualifications: [
+                "Pursuing a degree in Electrical Engineering, Computer Engineering, or Computer Science",
+                "Familiarity with GPU parallel programming paradigms and memory hierarchy",
+                "Experience debugging CUDA kernels using Nsight Compute"
+            ],
+            responsibilities: [
+                "Implement customized fused attention and matrix multiplication kernels",
+                "Benchmark end-to-end token generation latency on DGX SuperPOD systems",
+                "Contribute optimizations to NVIDIA open-source deep learning libraries"
+            ],
+            coursework: ["Parallel Computing", "Computer Architecture", "Deep Learning"],
+            location: "Santa Clara, CA",
+            workMode: "Hybrid",
+            paid: true,
+            deadline: "Jun 10, 2027",
+            applyUrl: "https://www.nvidia.com/en-us/about-nvidia/careers/",
+            explanation: "Top tier alignment with your CUDA and high-performance computing experience",
+            compensation: "$10,600/mo",
+            duration: "12 weeks",
+            startDate: "May 2027",
+            matchPercentage: 92,
+            matchAnalysis: MatchAnalysis(
+                overallMatch: 92,
+                skillsMatch: 94,
+                courseworkMatch: 91,
+                experienceMatch: 90,
+                preferencesMatch: 93,
+                explanation: "Matches your CUDA programming background and systems acceleration focus."
+            ),
+            imageUrl: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=800&auto=format&fit=crop&q=80",
+            companyLogoName: "cpu.fill",
+            accentHex: "#76B900"
+        ),
+        OpportunityCard(
+            id: "opp-17",
+            title: "Real-Time Collaboration Engine Intern",
+            organization: "Figma",
+            opportunityType: "Internship",
+            description: "Build multiplayer CRDT synchronizers, WebAssembly graphics pipelines, and canvas rendering optimizations.",
+            fullDescription: "Figma is the industry standard collaborative design platform. As an intern on the Canvas and Multiplayer team, you will write high-performance C++ compiled to WebAssembly, ensuring 60fps rendering with dozens of simultaneous active cursors.",
+            skills: ["TypeScript", "C++", "WebAssembly", "Graphics"],
+            preferredSkills: ["WebGL / WebGPU", "CRDTs", "Distributed Systems"],
+            qualifications: [
+                "Enrolled in Computer Science or related degree",
+                "Strong passion for building delightful, highly responsive user experiences",
+                "Solid understanding of algorithms, state synchronization, and vector math"
+            ],
+            responsibilities: [
+                "Optimize spatial scene-graph indexing for ultra-large design files",
+                "Improve conflict-free replicated data types (CRDTs) for offline sync",
+                "Ship customer-facing canvas rendering improvements directly to production"
+            ],
+            coursework: ["Computer Graphics", "Algorithms", "Web Systems"],
+            location: "San Francisco, CA",
+            workMode: "Hybrid",
+            paid: true,
+            deadline: "Jun 15, 2027",
+            applyUrl: "https://www.figma.com/careers/",
+            explanation: "Superb fit for your UI systems, graphics, and concurrency background",
+            compensation: "$10,400/mo",
+            duration: "12 weeks",
+            startDate: "May 2027",
+            matchPercentage: 86,
+            matchAnalysis: MatchAnalysis(
+                overallMatch: 86,
+                skillsMatch: 88,
+                courseworkMatch: 85,
+                experienceMatch: 84,
+                preferencesMatch: 87,
+                explanation: "Great match for your interest in interactive systems and low-level rendering."
+            ),
+            imageUrl: "https://images.unsplash.com/photo-1581291518857-4e27b48ff24e?w=800&auto=format&fit=crop&q=80",
+            companyLogoName: "paintpalette.fill",
+            accentHex: "#A259FF"
+        ),
+        OpportunityCard(
+            id: "opp-18",
+            title: "Quantum Hardware Simulation Fellow",
+            organization: "Harvard Quantum Initiative",
+            opportunityType: "REU",
+            description: "Simulate neutral-atom quantum processors and Rydberg array entanglement fidelity using high-performance cluster computing.",
+            fullDescription: "At the Harvard Quantum Initiative (HQI), join pioneering research groups in neutral atom quantum computing. You will simulate quantum many-body dynamics, laser pulse shaping, and quantum error correction codes.",
+            skills: ["Python", "Julia", "Quantum Mechanics", "Linear Algebra"],
+            preferredSkills: ["Qiskit / Cirq", "High Performance Computing", "GPU Acceleration"],
+            qualifications: [
+                "Undergraduate student in Physics, Mathematics, or Computer Science",
+                "Strong linear algebra and quantum mechanics mathematical preparation",
+                "Familiarity with scientific computing in Python or Julia"
+            ],
+            responsibilities: [
+                "Model laser-induced Rydberg blockade interactions across 2D optical tweezers",
+                "Optimize gate fidelity via numerical optimal control algorithms (GRAPE)",
+                "Present research at the New England Quantum Symposium"
+            ],
+            coursework: ["Quantum Physics", "Linear Algebra", "Numerical Methods"],
+            location: "Cambridge, MA",
+            workMode: "In-Person",
+            paid: true,
+            deadline: "Jun 20, 2027",
+            applyUrl: "https://quantum.harvard.edu",
+            explanation: "Unique opportunity aligning with your physics and advanced computation coursework",
+            compensation: "$800/week",
+            duration: "10 weeks",
+            startDate: "June 2027",
+            matchPercentage: 84,
+            matchAnalysis: MatchAnalysis(
+                overallMatch: 84,
+                skillsMatch: 86,
+                courseworkMatch: 84,
+                experienceMatch: 80,
+                preferencesMatch: 86,
+                explanation: "Good alignment with your advanced mathematics and physics interests."
+            ),
+            imageUrl: "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=800&auto=format&fit=crop&q=80",
+            companyLogoName: "atom",
+            accentHex: "#6366F1"
+        ),
+        OpportunityCard(
+            id: "opp-19",
+            title: "Forward Deployed Engineer Intern",
+            organization: "Palantir",
+            opportunityType: "Internship",
+            description: "Deploy mission-critical data integration pipelines and AI-assisted operational workflows for defense and health clients.",
+            fullDescription: "As an FDE Intern at Palantir, you sit at the intersection of high-leverage software engineering and mission impact. You will architect ontology-driven data backends and real-time operational applications using Palantir Foundry and AIP.",
+            skills: ["TypeScript", "Java", "Python", "Data Architecture"],
+            preferredSkills: ["React", "PostgreSQL", "System Design"],
+            qualifications: [
+                "Degree in Computer Science, Software Engineering, or related technical field",
+                "Exceptional communication skills and ability to solve ambiguous operational problems",
+                "Strong technical acumen across full-stack and backend systems"
+            ],
+            responsibilities: [
+                "Build end-to-end data transformation pipelines handling real-world noisy data",
+                "Prototype and deploy customized LLM operational workflows on Foundry AIP",
+                "Work on-site with customer technical leadership to accelerate mission objectives"
+            ],
+            coursework: ["Software Engineering", "Database Systems", "Web Architecture"],
+            location: "Washington, DC",
+            workMode: "Hybrid",
+            paid: true,
+            deadline: "Jun 25, 2027",
+            applyUrl: "https://www.palantir.com/careers/",
+            explanation: "Strong fit for your full-stack product building and system design skills",
+            compensation: "$10,000/mo",
+            duration: "12 weeks",
+            startDate: "May 2027",
+            matchPercentage: 87,
+            matchAnalysis: MatchAnalysis(
+                overallMatch: 87,
+                skillsMatch: 89,
+                courseworkMatch: 86,
+                experienceMatch: 85,
+                preferencesMatch: 88,
+                explanation: "Solid match for your full-stack and product engineering experience."
+            ),
+            imageUrl: "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=800&auto=format&fit=crop&q=80",
+            companyLogoName: "shield.checkerboard",
+            accentHex: "#0EA5E9"
+        ),
+        OpportunityCard(
+            id: "opp-20",
+            title: "High Performance Systems Intern",
+            organization: "Jane Street",
+            opportunityType: "Internship",
+            description: "Design type-safe trading automation platforms, compiler tools, and high-frequency network protocols in OCaml.",
+            fullDescription: "Jane Street is a quantitative trading firm where functional programming powers every aspect of the technology stack. You will use OCaml to design concurrent, high-availability market connectors, statistical arbitrage runners, and internal developer tools.",
+            skills: ["OCaml / Functional", "C", "Algorithms", "Concurrency"],
+            preferredSkills: ["Type Systems", "Linux Internals", "Networking"],
+            qualifications: [
+                "Enrolled in an undergraduate or graduate degree in Computer Science or Math",
+                "Interest in expressive type systems, functional programming, and algorithmic efficiency",
+                "Deep curiosity about complex distributed market mechanisms"
+            ],
+            responsibilities: [
+                "Write robust, test-driven OCaml systems deployed into real-time trading loops",
+                "Build interactive terminal and graphical monitoring tools for trading desks",
+                "Participate in daily mathematical puzzles and technology seminars"
+            ],
+            coursework: ["Programming Languages", "Algorithms", "Discrete Mathematics"],
+            location: "New York, NY",
+            workMode: "In-Person",
+            paid: true,
+            deadline: "Jun 30, 2027",
+            applyUrl: "https://www.janestreet.com/join-jane-street/",
+            explanation: "Top tier match for your algorithm analysis and systems curiosity",
+            compensation: "$14,500/mo",
+            duration: "12 weeks",
+            startDate: "June 2027",
+            matchPercentage: 89,
+            matchAnalysis: MatchAnalysis(
+                overallMatch: 89,
+                skillsMatch: 90,
+                courseworkMatch: 88,
+                experienceMatch: 88,
+                preferencesMatch: 90,
+                explanation: "Great match for your strong algorithmic foundations and interest in type-safe systems."
+            ),
+            imageUrl: "https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=800&auto=format&fit=crop&q=80",
+            companyLogoName: "chart.bar.xaxis",
+            accentHex: "#14B8A6"
+        ),
+        OpportunityCard(
+            id: "opp-21",
+            title: "Multimodal Foundation Models Fellow",
+            organization: "Berkeley AI Research (BAIR)",
+            opportunityType: "REU",
+            description: "Explore vision-language pretraining, continuous diffusion transformers, and embodied agent reasoning.",
+            fullDescription: "At the Berkeley Artificial Intelligence Research Lab (BAIR), collaborate with world-renowned AI faculty and PhD candidates. You will research multimodal tokenizers, sparse mixture-of-experts (MoE) architectures, and synthetic data generation pipelines.",
+            skills: ["Python", "PyTorch", "Transformers", "Computer Vision"],
+            preferredSkills: ["DeepSpeed", "HuggingFace", "Diffusion Models"],
+            qualifications: [
+                "Undergraduate student majoring in Computer Science, EECS, or Statistics",
+                "Demonstrated proficiency writing modular deep learning code in PyTorch",
+                "Experience training vision-language or generative diffusion models"
+            ],
+            responsibilities: [
+                "Train multimodal transformer checkpoints on high-performance GPU clusters",
+                "Benchmark zero-shot spatial reasoning and visual question answering",
+                "Co-author a submission to CVPR, ICCV, or NeurIPS"
+            ],
+            coursework: ["Computer Vision", "Deep Learning", "Linear Algebra"],
+            location: "Berkeley, CA",
+            workMode: "Hybrid",
+            paid: true,
+            deadline: "Jul 05, 2027",
+            applyUrl: "https://bair.berkeley.edu",
+            explanation: "Superb alignment with your computer vision and foundation model aspirations",
+            compensation: "$850/week",
+            duration: "10 weeks",
+            startDate: "June 2027",
+            matchPercentage: 94,
+            matchAnalysis: MatchAnalysis(
+                overallMatch: 94,
+                skillsMatch: 96,
+                courseworkMatch: 93,
+                experienceMatch: 92,
+                preferencesMatch: 95,
+                explanation: "Outstanding alignment with your multimodal research ambitions and ML foundations."
+            ),
+            imageUrl: "https://images.unsplash.com/photo-1534972195531-a756b1126f24?w=800&auto=format&fit=crop&q=80",
+            companyLogoName: "eye.trianglebadge.exclamationmark",
+            accentHex: "#3B82F6"
         )
     ]
 }

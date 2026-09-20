@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import PDFKit
 
 struct OnboardingView: View {
     @EnvironmentObject var appState: AppState
@@ -45,8 +46,10 @@ struct OnboardingView: View {
     @State private var newLocationInput: String = ""
     @State private var compensationTarget: String = ""
     
-    // Saving state
+    // Saving state & Error Handling
     @State private var isSaving: Bool = false
+    @State private var errorMessage: String? = nil
+    @State private var showErrorAlert: Bool = false
     
     var body: some View {
         ZStack {
@@ -95,6 +98,11 @@ struct OnboardingView: View {
             if let userDisp = AuthService.shared.userDisplayName, !userDisp.isEmpty {
                 self.name = userDisp
             }
+        }
+        .alert("Unable to Complete Onboarding", isPresented: $showErrorAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(errorMessage ?? "An error occurred while saving your profile.")
         }
     }
     
@@ -585,6 +593,9 @@ struct OnboardingView: View {
             HStack {
                 if currentStep < totalSteps {
                     Button(action: {
+                        if currentStep == 1, let parsed = parsedResumeData {
+                            applyParsedDataToFields(parsed)
+                        }
                         goToNextStep()
                     }) {
                         HStack(spacing: 6) {
@@ -765,8 +776,12 @@ struct OnboardingView: View {
     }
     
     private func handleResumeUploaded(url: URL) {
-        guard url.startAccessingSecurityScopedResource() else { return }
-        defer { url.stopAccessingSecurityScopedResource() }
+        let accessing = url.startAccessingSecurityScopedResource()
+        defer {
+            if accessing {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
         
         let fileName = url.lastPathComponent
         self.uploadedFileName = fileName
@@ -782,14 +797,54 @@ struct OnboardingView: View {
                     self.isParsingResume = false
                     self.parsedResumeData = parsed
                     self.showParsedDecisionPrompt = true
+                    self.applyParsedDataToFields(parsed)
                 }
             } catch {
                 await MainActor.run {
                     self.isParsingResume = false
-                    // Still show next step button even if parse failed
+                    self.extractLocalPDFInfo(data: data, fileName: fileName)
                 }
             }
         }
+    }
+    
+    private func extractLocalPDFInfo(data: Data, fileName: String) {
+        guard let doc = PDFDocument(data: data) else { return }
+        var fullText = ""
+        for i in 0..<doc.pageCount {
+            if let page = doc.page(at: i), let pageText = page.string {
+                fullText += pageText + "\n"
+            }
+        }
+        guard !fullText.isEmpty else { return }
+        
+        let lines = fullText.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            
+        if self.name.isEmpty, let first = lines.first, first.count < 40 {
+            self.name = first
+        }
+        
+        let lower = fullText.lowercased()
+        let knownSkills = ["Python", "Swift", "Java", "C++", "JavaScript", "TypeScript", "React", "SQL", "PyTorch", "Git", "AWS", "Docker", "Machine Learning", "Data Structures", "HTML", "CSS", "Node.js"]
+        for skill in knownSkills {
+            if lower.contains(skill.lowercased()) && !self.skills.contains(skill) {
+                self.skills.append(skill)
+            }
+        }
+        
+        let localParsed = ParsedResumeData(
+            name: self.name.isEmpty ? nil : self.name,
+            email: nil,
+            university: self.university.isEmpty ? nil : self.university,
+            major: self.major.isEmpty ? nil : self.major,
+            graduationYear: Int(self.graduationYear),
+            skills: self.skills.isEmpty ? nil : self.skills,
+            coursework: self.coursework.isEmpty ? nil : self.coursework,
+            experience: self.experiences.isEmpty ? nil : self.experiences
+        )
+        self.parsedResumeData = localParsed
     }
     
     private func applyParsedDataToFields(_ parsed: ParsedResumeData) {
@@ -797,13 +852,32 @@ struct OnboardingView: View {
         if let u = parsed.university, !u.isEmpty { self.university = u }
         if let m = parsed.major, !m.isEmpty { self.major = m }
         if let y = parsed.graduationYear { self.graduationYear = "\(y)" }
-        if let sk = parsed.skills, !sk.isEmpty { self.skills = sk }
-        if let cw = parsed.coursework, !cw.isEmpty { self.coursework = cw }
-        if let ex = parsed.experience, !ex.isEmpty { self.experiences = ex }
+        if let sk = parsed.skills, !sk.isEmpty {
+            for s in sk {
+                if !self.skills.contains(s) {
+                    self.skills.append(s)
+                }
+            }
+        }
+        if let cw = parsed.coursework, !cw.isEmpty {
+            for c in cw {
+                if !self.coursework.contains(c) {
+                    self.coursework.append(c)
+                }
+            }
+        }
+        if let ex = parsed.experience, !ex.isEmpty {
+            for e in ex {
+                if !self.experiences.contains(e) {
+                    self.experiences.append(e)
+                }
+            }
+        }
     }
     
     private func completeOnboarding() {
         isSaving = true
+        errorMessage = nil
         
         var profile = matchStore.studentProfile
         if !name.isEmpty { profile.name = name }
@@ -831,12 +905,20 @@ struct OnboardingView: View {
         matchStore.updateProfile(profile)
         
         Task {
-            _ = try? await APIService.shared.updateStudentProfile(studentId: profile.id, profile: profile)
-            
-            await MainActor.run {
-                self.isSaving = false
-                withAnimation {
-                    self.appState.hasCompletedOnboarding = true
+            do {
+                try await APIService.shared.updateStudentProfile(studentId: profile.id, profile: profile)
+                
+                await MainActor.run {
+                    self.isSaving = false
+                    withAnimation {
+                        self.appState.hasCompletedOnboarding = true
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    self.isSaving = false
+                    self.errorMessage = "Failed to save profile: \(error.localizedDescription)\n\nPlease ensure your backend is reachable at \(APIService.shared.baseURL) and try again."
+                    self.showErrorAlert = true
                 }
             }
         }

@@ -405,6 +405,7 @@ class MatchTableViewCell: UITableViewCell {
         
         statusButton.translatesAutoresizingMaskIntoConstraints = false
         statusButton.addTarget(self, action: #selector(didTapButton), for: .touchUpInside)
+        statusButton.setContentCompressionResistancePriority(.required, for: .horizontal)
         rightActionStack.addArrangedSubview(statusButton)
         
         NSLayoutConstraint.activate([
@@ -472,9 +473,18 @@ class MatchTableViewCell: UITableViewCell {
         )
         
         // Modern Apple Button Configuration for Status / Action
+        let buttonFont = UIFont.systemFont(ofSize: 12, weight: .semibold)
+        let titleAttributes = UIConfigurationTextAttributesTransformer { incoming in
+            var outgoing = incoming
+            outgoing.font = buttonFont
+            return outgoing
+        }
+        
         if match.applicationStatus == .applied {
             var config = UIButton.Configuration.tinted()
             config.title = "Applied"
+            config.titleLineBreakMode = .byClipping
+            config.titleTextAttributesTransformer = titleAttributes
             let checkmarkConfig = UIImage.SymbolConfiguration(pointSize: 10, weight: .bold)
             config.image = UIImage(systemName: "checkmark", withConfiguration: checkmarkConfig)
             config.imagePlacement = .trailing
@@ -482,12 +492,14 @@ class MatchTableViewCell: UITableViewCell {
             config.cornerStyle = .capsule
             config.baseBackgroundColor = AppTheme.Colors.green.withAlphaComponent(0.18)
             config.baseForegroundColor = AppTheme.Colors.green
-            config.contentInsets = NSDirectionalEdgeInsets(top: 5, leading: 12, bottom: 5, trailing: 12)
+            config.contentInsets = NSDirectionalEdgeInsets(top: 5, leading: 10, bottom: 5, trailing: 10)
             statusButton.configuration = config
             statusButton.isUserInteractionEnabled = false
         } else {
             var config = UIButton.Configuration.filled()
             config.title = "Apply"
+            config.titleLineBreakMode = .byClipping
+            config.titleTextAttributesTransformer = titleAttributes
             let arrowConfig = UIImage.SymbolConfiguration(pointSize: 10, weight: .bold)
             config.image = UIImage(systemName: "arrow.up.right", withConfiguration: arrowConfig)
             config.imagePlacement = .trailing
@@ -495,7 +507,7 @@ class MatchTableViewCell: UITableViewCell {
             config.cornerStyle = .capsule
             config.baseBackgroundColor = AppTheme.Colors.blue
             config.baseForegroundColor = .white
-            config.contentInsets = NSDirectionalEdgeInsets(top: 5, leading: 14, bottom: 5, trailing: 14)
+            config.contentInsets = NSDirectionalEdgeInsets(top: 5, leading: 12, bottom: 5, trailing: 12)
             statusButton.configuration = config
             statusButton.isUserInteractionEnabled = true
         }
