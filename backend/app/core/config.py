@@ -35,21 +35,37 @@ class Settings(BaseSettings):
     app_name: str = "Echelon Backend"
     debug: bool = False
 
-    # Future: add GEMINI_API_KEY, DATABRICKS_* etc. here when needed.
     # Gemini / Google Cloud Agent Platform
     # Populated from GOOGLE_API_KEY environment variable.
     # Optional so the server starts cleanly even without the key set;
     # the Gemini service raises an explicit error at call-time instead.
     google_api_key: SecretStr | None = None
+    gemini_api_key: str | None = None
+    gemini_generative_model: str = "gemini-3.8-flash"
+    gemini_embedding_model: str = "gemini-embedding-2"
+    gemini_embedding_dimension: int = 768
 
     # Firebase Authentication
     firebase_credentials_path: str | None = None
+
     # Databricks
     # Name of the CLI profile in ~/.databrickscfg to use for unified auth.
+    databricks_host: str | None = None
     databricks_config_profile: str | None = None
     databricks_warehouse_id: str | None = None
     databricks_catalog: str | None = None
     databricks_schema: str | None = None
+    databricks_ai_search_endpoint: str | None = None
+    databricks_ai_search_index: str | None = None
+
+
+from functools import lru_cache
+
+
+@lru_cache
+def get_settings() -> Settings:
+    """Return a cached Settings instance."""
+    return Settings()
 
 
 settings = Settings()

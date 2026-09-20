@@ -12,6 +12,8 @@ handlers themselves are plain ``def`` (not ``async def``).
 import json
 import logging
 from typing import Optional
+from datetime import datetime
+from typing import Any, Optional
 
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import DatabricksError
@@ -23,6 +25,7 @@ from databricks.sdk.service.sql import (
 
 from app.core.config import settings
 from app.models.opportunity import Opportunity
+from app.models.opportunity import CareerTrackAffinity, Opportunity
 from app.models.recommendation import CareerPreferences
 from app.models.student import StudentProfile
 
@@ -160,12 +163,12 @@ def _execute_statement(
 
 
 # ---------------------------------------------------------------------------
-# Table setup (idempotent — creates all required tables)
+# Table setup & Live Schema Migration (idempotent & non-destructive)
 # ---------------------------------------------------------------------------
 
 
 def setup_tables(include_career_preferences: bool = False) -> None:
-    """Idempotent DDL for all Echelon application tables.
+    """Idempotent DDL for Echelon application tables.
 
     Creates:
     - ``student_profiles``
@@ -173,7 +176,7 @@ def setup_tables(include_career_preferences: bool = False) -> None:
     - optionally ``career_preferences``
 
     Compatible with the live environment:
-    - No DEFAULT CURRENT_TIMESTAMP() (column defaults disabled).
+    - No DEFAULT CURRENT_TIMESTAMP() (column defaults disabled in workspace).
     - No PRIMARY KEY declaration.
     - USING DELTA storage.
     """
@@ -257,8 +260,76 @@ def setup_career_preferences_table() -> None:
     """)
 
 
+# List of Phase 2 columns required on the opportunities table.
+PHASE_2_OPPORTUNITY_COLUMNS = [
+    ("source_name", "STRING"),
+    ("source_age", "STRING"),
+    ("active", "BOOLEAN"),
+    ("first_seen_at", "TIMESTAMP"),
+    ("last_seen_at", "TIMESTAMP"),
+    ("school_restrictions", "ARRAY<STRING>"),
+    ("eligibility_notes", "ARRAY<STRING>"),
+    ("degree_levels", "ARRAY<STRING>"),
+    ("work_authorization_requirements", "ARRAY<STRING>"),
+    ("career_tracks", "STRING"),
+    ("remote_status", "STRING"),
+]
+
+
+def migrate_schema() -> dict[str, Any]:
+    """Safely migrate the live Databricks environment without dropping tables or rows.
+
+    Actions performed:
+    1. Ensures baseline tables exist via setup_tables().
+    2. Ensures career_preferences exists.
+    3. Inspects current columns in workspace.default.opportunities.
+    4. Adds any missing Phase 2 columns via ALTER TABLE ADD COLUMN.
+    5. Sets active = true for existing rows where active is NULL so historical
+       records (like the GCC grant) are not hidden from recommendation retrieval.
+
+    Returns:
+        Summary dict of migration operations performed.
+    """
+    logger.info("Starting safe Databricks schema migration...")
+    summary: dict[str, Any] = {
+        "tables_checked": ["student_profiles", "opportunities", "career_preferences"],
+        "columns_added": [],
+        "rows_updated": 0,
+    }
+
+    # Step 1: Ensure baseline tables exist
+    setup_tables(include_career_preferences=True)
+
+    # Step 2: Inspect existing columns in opportunities
+    desc_response = _execute_statement("DESCRIBE TABLE opportunities")
+    existing_cols = set()
+    if desc_response.result and desc_response.result.data_array:
+        for row in desc_response.result.data_array:
+            if row and row[0]:
+                col_name = str(row[0]).strip().lower()
+                if not col_name.startswith("#"):
+                    existing_cols.add(col_name)
+
+    # Step 3: Add any missing Phase 2 columns
+    for col_name, col_type in PHASE_2_OPPORTUNITY_COLUMNS:
+        if col_name.lower() not in existing_cols:
+            logger.info("Adding column %s %s to opportunities table...", col_name, col_type)
+            alter_sql = f"ALTER TABLE opportunities ADD COLUMN {col_name} {col_type}"
+            _execute_statement(alter_sql)
+            summary["columns_added"].append(col_name)
+
+    # Step 4: Ensure historical rows have active = true
+    update_sql = "UPDATE opportunities SET active = true WHERE active IS NULL"
+    _execute_statement(update_sql)
+    logger.info("Ensured active = true for historical rows.")
+
+    logger.info("Databricks schema migration completed successfully: %s", summary)
+    return summary
+
+
 # ---------------------------------------------------------------------------
 # Profile persistence
+# Profile persistence & retrieval
 # ---------------------------------------------------------------------------
 
 
@@ -360,6 +431,7 @@ def get_student_profile(firebase_uid: str) -> Optional[StudentProfile]:
 
 # ---------------------------------------------------------------------------
 # Career Preferences persistence
+# Career Preferences persistence & retrieval
 # ---------------------------------------------------------------------------
 
 
@@ -485,8 +557,21 @@ def get_career_preferences(firebase_uid: str) -> Optional[CareerPreferences]:
         return None
 
     row = data[0]
+
+    tracks: list[CareerTrackAffinity] = []
+    if row[0]:
+        try:
+            raw_tracks = json.loads(row[0])
+            for t in raw_tracks:
+                if isinstance(t, dict):
+                    tracks.append(CareerTrackAffinity(**t))
+                elif isinstance(t, str):
+                    tracks.append(CareerTrackAffinity(track=t, weight=0.5))
+        except Exception:
+            pass
+
     return CareerPreferences(
-        career_tracks=json.loads(row[0]) if row[0] else [],
+        career_tracks=tracks,
         preferred_role_types=json.loads(row[1]) if row[1] else [],
         preferred_locations=json.loads(row[2]) if row[2] else [],
         remote_preference=row[3] if row[3] else None,
@@ -502,6 +587,7 @@ def get_career_preferences(firebase_uid: str) -> Optional[CareerPreferences]:
 
 # ---------------------------------------------------------------------------
 # Opportunity persistence
+# Deserialization Helpers
 # ---------------------------------------------------------------------------
 
 _OPP_SELECT_COLS = (
@@ -512,10 +598,67 @@ _OPP_SELECT_COLS = (
 )
 
 
+def _parse_bool(val: Any, default: bool = True) -> bool:
+    """Safely parse boolean values returned as bool, int, string, or NULL."""
+    if val is None or val == "" or val == "null":
+        return default
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, (int, float)):
+        return bool(val)
+    if isinstance(val, str):
+        return val.strip().lower() in ("true", "1", "yes", "t")
+    return bool(val)
+
+
+def _parse_datetime(val: Any) -> Optional[datetime]:
+    """Safely parse datetime values returned as datetime object or string."""
+    if not val or val == "null" or val == "":
+        return None
+    if isinstance(val, datetime):
+        return val
+    if isinstance(val, str):
+        try:
+            return datetime.fromisoformat(val.replace("Z", "+00:00"))
+        except Exception:
+            try:
+                return datetime.strptime(val[:19], "%Y-%m-%d %H:%M:%S")
+            except Exception:
+                return None
+    return None
+
+
+def _parse_career_tracks(val: Any) -> list[CareerTrackAffinity]:
+    """Safely parse career_tracks JSON into list[CareerTrackAffinity]."""
+    if not val or val == "null":
+        return []
+    try:
+        raw = json.loads(val) if isinstance(val, str) else val
+        if not isinstance(raw, list):
+            return []
+        tracks: list[CareerTrackAffinity] = []
+        for item in raw:
+            if isinstance(item, CareerTrackAffinity):
+                tracks.append(item)
+            elif isinstance(item, dict):
+                tracks.append(CareerTrackAffinity(**item))
+            elif isinstance(item, str):
+                tracks.append(CareerTrackAffinity(track=item, weight=0.5))
+        return tracks
+    except Exception as exc:
+        logger.warning("Failed to parse career_tracks %r: %s", val, exc)
+        return []
+
+
 def _row_to_opportunity(row: list, schema: Optional[dict[str, int]] = None) -> Opportunity:
-    """Deserialize a Databricks result row into an ``Opportunity``."""
+    """Deserialize a Databricks result row into an ``Opportunity``.
+
+    Supports:
+    1. Schema-aware dictionary mapping when schema.columns manifest is provided.
+    2. Positional indexing fallback for mocked test rows matching _OPP_SELECT_COLS.
+    """
     if schema:
-        def get_val(name, default=None, is_json=False):
+        def get_val(name: str, default: Any = None, is_json: bool = False):
             if name not in schema:
                 return default
             val = row[schema[name]]
@@ -537,7 +680,9 @@ def _row_to_opportunity(row: list, schema: Optional[dict[str, int]] = None) -> O
             source_url=get_val("source_url", ""),
             source_name=get_val("source_name", "Unknown"),
             source_age=get_val("source_age"),
-            active=get_val("active") == "true" if isinstance(get_val("active"), str) else bool(get_val("active", True)),
+            active=_parse_bool(get_val("active"), default=True),
+            first_seen_at=_parse_datetime(get_val("first_seen_at")),
+            last_seen_at=_parse_datetime(get_val("last_seen_at")),
             skills=get_val("skills", [], is_json=True),
             interests=get_val("interests", [], is_json=True),
             eligibility=get_val("eligibility", [], is_json=True),
@@ -549,7 +694,7 @@ def _row_to_opportunity(row: list, schema: Optional[dict[str, int]] = None) -> O
             work_authorization_requirements=get_val(
                 "work_authorization_requirements", [], is_json=True
             ),
-            career_tracks=get_val("career_tracks", [], is_json=True),
+            career_tracks=_parse_career_tracks(get_val("career_tracks")),
             location=get_val("location"),
             remote_status=get_val("remote_status"),
             time_commitment=get_val("time_commitment"),
@@ -560,7 +705,7 @@ def _row_to_opportunity(row: list, schema: Optional[dict[str, int]] = None) -> O
             contact_email=get_val("contact_email"),
         )
 
-    # Positional mapping for _OPP_SELECT_COLS (matches test_opportunities.py)
+    # Positional mapping fallback for _OPP_SELECT_COLS (matches test_opportunities.py)
     return Opportunity(
         id=row[0],
         title=row[1],
@@ -583,8 +728,17 @@ def _row_to_opportunity(row: list, schema: Optional[dict[str, int]] = None) -> O
     )
 
 
+# ---------------------------------------------------------------------------
+# Opportunity persistence & retrieval
+# ---------------------------------------------------------------------------
+
+
 def save_opportunity(opportunity: Opportunity) -> None:
-    """Upsert an opportunity into Databricks keyed by ``opportunity.id``."""
+    """Upsert an opportunity into Databricks keyed by ``opportunity.id``.
+
+    Uses try_to_timestamp(nullif(...)) to safely handle optional timestamps
+    without passing invalid empty strings as TIMESTAMP types.
+    """
     statement = """
     MERGE INTO opportunities t
     USING (
@@ -597,9 +751,9 @@ def save_opportunity(opportunity: Opportunity) -> None:
             :source_url       AS source_url,
             :source_name      AS source_name,
             :source_age       AS source_age,
-            :active           AS active,
-            :first_seen_at    AS first_seen_at,
-            :last_seen_at     AS last_seen_at,
+            (CASE WHEN :active = 'true' OR :active = '1' THEN true ELSE false END) AS active,
+            try_to_timestamp(nullif(:first_seen_at, '')) AS first_seen_at,
+            try_to_timestamp(nullif(:last_seen_at, ''))  AS last_seen_at,
             from_json(:skills,       'ARRAY<STRING>') AS skills,
             from_json(:interests,    'ARRAY<STRING>') AS interests,
             from_json(:eligibility,  'ARRAY<STRING>') AS eligibility,
@@ -677,11 +831,11 @@ def save_opportunity(opportunity: Opportunity) -> None:
         StatementParameterListItem(name="opportunity_type", value=opportunity.opportunity_type,            type="STRING"),
         StatementParameterListItem(name="description",      value=opportunity.description,                 type="STRING"),
         StatementParameterListItem(name="source_url",       value=opportunity.source_url,                  type="STRING"),
-        StatementParameterListItem(name="source_name",      value=opportunity.source_name,                 type="STRING"),
+        StatementParameterListItem(name="source_name",      value=opportunity.source_name or "Unknown",     type="STRING"),
         StatementParameterListItem(name="source_age",       value=opportunity.source_age or "",            type="STRING"),
-        StatementParameterListItem(name="active",           value="true" if opportunity.active else "false", type="BOOLEAN"),
-        StatementParameterListItem(name="first_seen_at",    value=opportunity.first_seen_at.isoformat() if opportunity.first_seen_at else "", type="TIMESTAMP"),
-        StatementParameterListItem(name="last_seen_at",     value=opportunity.last_seen_at.isoformat() if opportunity.last_seen_at else "",  type="TIMESTAMP"),
+        StatementParameterListItem(name="active",           value="true" if opportunity.active else "false", type="STRING"),
+        StatementParameterListItem(name="first_seen_at",    value=opportunity.first_seen_at.isoformat() if opportunity.first_seen_at else "", type="STRING"),
+        StatementParameterListItem(name="last_seen_at",     value=opportunity.last_seen_at.isoformat() if opportunity.last_seen_at else "",  type="STRING"),
         StatementParameterListItem(name="skills",           value=json.dumps(opportunity.skills),          type="STRING"),
         StatementParameterListItem(name="interests",        value=json.dumps(opportunity.interests),       type="STRING"),
         StatementParameterListItem(name="eligibility",      value=json.dumps(opportunity.eligibility),     type="STRING"),
@@ -801,7 +955,7 @@ def get_active_opportunities() -> list[Opportunity]:
     ):
         schema = {col.name: idx for idx, col in enumerate(response.manifest.schema.columns)}
 
-    opportunities = []
+    opportunities: list[Opportunity] = []
     for row in data:
         try:
             opportunities.append(_row_to_opportunity(row, schema=schema))

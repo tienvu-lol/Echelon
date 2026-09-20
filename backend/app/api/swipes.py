@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, Query
 
 from app.config import Settings, get_settings
+from app.core.config import Settings, get_settings
 from app.models.swipe import SavedOpportunity, Swipe
 from app.schemas.requests import SwipeRequest
 from app.schemas.responses import SwipeResponse
