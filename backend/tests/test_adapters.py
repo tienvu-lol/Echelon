@@ -63,51 +63,78 @@ from app.ingestion.virginia_tech import VirginiaTechAdapter
 import httpx
 
 class TestVirginiaTechAdapter:
-    SAMPLE_VT_HTML = """
+    GCC_URL = VirginiaTechAdapter.DEFAULT_URLS[0]
+    UT_PROSIM_URL = VirginiaTechAdapter.DEFAULT_URLS[2]
+    CEIP_URL = VirginiaTechAdapter.DEFAULT_URLS[3]
+    INTERNEXP_URL = VirginiaTechAdapter.DEFAULT_URLS[1]
+
+    SAMPLE_GCC_HTML = """
     <html>
         <body>
             <main>
-                <h1>GCC Undergraduate Research Grants</h1>
-                <p>The Global Change Center at Virginia Tech is pleased to announce...</p>
-                <p>Apply by November 15th.</p>
+                <h1>UNDERGRADUATE RESEARCH GRANTS</h1>
+                <p>The Global Change Center at Virginia Tech sponsors undergraduate research projects.</p>
+                <p>Submissions for Undergraduate Research Grants for 2026-2027 are due September 25, 2026.</p>
             </main>
         </body>
     </html>
     """
 
-    def test_scrapes_vt_pages(self, mocker):
-        adapter = VirginiaTechAdapter(urls=["https://vt.edu/mock-grant"])
-
+    def test_emits_active_gcc_grant_without_fabricated_fields(self):
         mock_response = MagicMock()
-        mock_response.text = self.SAMPLE_VT_HTML
+        mock_response.text = self.SAMPLE_GCC_HTML
         mock_response.raise_for_status = MagicMock()
-
-        # We need to mock httpx.Client.get because the adapter instantiates its own client if not provided,
-        # or we can pass a mock client.
         mock_client = MagicMock(spec=httpx.Client)
         mock_client.get.return_value = mock_response
-        adapter.client = mock_client
+        adapter = VirginiaTechAdapter(urls=[self.GCC_URL], client=mock_client)
 
         opps = list(adapter.fetch_opportunities())
 
         assert len(opps) == 1
         opp = opps[0]
-        assert opp.organization == "Virginia Tech"
-        assert opp.title == "GCC Undergraduate Research Grants"
-        assert opp.opportunity_type == "program"
+        assert opp.organization == "Virginia Tech Global Change Center"
+        assert opp.title == "UNDERGRADUATE RESEARCH GRANTS"
+        assert opp.opportunity_type == "grant"
         assert opp.source_name == "Virginia Tech"
-        assert opp.apply_url == "https://vt.edu/mock-grant"
+        assert opp.source_url == self.GCC_URL
+        assert opp.apply_url == self.GCC_URL
+        assert opp.deadline == "2026-09-25"
+        assert opp.active is True
         assert "Global Change Center" in opp.description
-        assert "Apply by November 15th." in opp.description
+        assert opp.career_tracks == []
+        assert opp.contact_name is None
+        assert opp.contact_email is None
+        assert opp.compensation is None
+        assert opp.eligibility == []
+        assert opp.location is None
 
-        # verify career_tracks defaults
-        assert len(opp.career_tracks) >= 2
-        track_names = [ct.track for ct in opp.career_tracks]
-        assert "research" in track_names
-        assert "campus" in track_names
+    def test_id_is_stable_and_deterministic(self):
+        first = VirginiaTechAdapter._stable_id(self.GCC_URL)
+        second = VirginiaTechAdapter._stable_id(self.GCC_URL)
 
-    def test_handles_fetch_error(self, mocker):
-        adapter = VirginiaTechAdapter(urls=["https://vt.edu/mock-grant"])
+        assert first == second
+        assert first == (
+            "vt_"
+            "4100f8e3724523fc92ac5cb56a6e13164e8cb92611b4b449066001450ad2f507"
+        )
+
+    @pytest.mark.parametrize("url", [UT_PROSIM_URL, CEIP_URL, INTERNEXP_URL])
+    def test_rejects_non_actionable_landing_pages(self, url):
+        mock_response = MagicMock()
+        mock_response.text = """
+        <html><body><main>
+            <h1>Virginia Tech Program</h1>
+            <p>General information about this program and prior participants.</p>
+        </main></body></html>
+        """
+        mock_response.raise_for_status = MagicMock()
+        mock_client = MagicMock(spec=httpx.Client)
+        mock_client.get.return_value = mock_response
+
+        assert list(VirginiaTechAdapter(urls=[url], client=mock_client).fetch_opportunities()) == []
+
+    def test_handles_fetch_error(self):
+        adapter = VirginiaTechAdapter(urls=[self.GCC_URL])
         mock_client = MagicMock(spec=httpx.Client)
         mock_client.get.side_effect = httpx.RequestError("Network error")
         adapter.client = mock_client
