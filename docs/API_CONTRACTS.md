@@ -25,6 +25,22 @@ Response:
 }
 ```
 
+## GET /api/profile/me
+
+Requires: `Authorization: Bearer <Firebase ID Token>`
+
+Response: Returns the authenticated user's `StudentProfile` if it exists. Returns `404 Not Found` otherwise.
+```json
+{
+  "major": "Computer Science",
+  "class_year": "Sophomore",
+  "skills": ["Python", "Java"],
+  "interests": ["AI", "Cybersecurity"],
+  "coursework": ["Data Structures"],
+  "experience": []
+}
+```
+
 ## POST /api/profile/parse
 
 Requires: `Authorization: Bearer <Firebase ID Token>`

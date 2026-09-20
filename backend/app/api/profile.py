@@ -1,9 +1,30 @@
 from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, status
 from app.api.deps import get_current_user
 from app.services.gemini_service import parse_resume, GeminiServiceError
+from app.services.databricks_service import save_student_profile, get_student_profile, DatabricksServiceError
 from app.models.student import StudentProfile
 
 router = APIRouter(prefix="/api/profile", tags=["profile"])
+
+@router.get("/me", response_model=StudentProfile)
+async def get_my_profile(current_user: dict = Depends(get_current_user)):
+    """
+    Retrieve the authenticated user's profile from Databricks.
+    """
+    uid = current_user.get("uid")
+    try:
+        profile = get_student_profile(uid)
+        if not profile:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Profile not found."
+            )
+        return profile
+    except DatabricksServiceError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve profile."
+        )
 
 @router.post("/parse", response_model=StudentProfile)
 async def parse_profile_route(
@@ -13,7 +34,8 @@ async def parse_profile_route(
     current_user: dict = Depends(get_current_user)
 ):
     """
-    Parse a student's resume PDF (and optional bio/interests) into a structured profile.
+    Parse a student's resume PDF (and optional bio/interests) into a structured profile,
+    and persist it to Databricks keyed by the user's Firebase UID.
     Requires Firebase Authentication.
     """
     if not resume.filename.endswith(".pdf"):
@@ -22,14 +44,27 @@ async def parse_profile_route(
             detail="Resume must be a PDF file."
         )
         
+    uid = current_user.get("uid")
+    if not uid:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user token.")
+        
     try:
         pdf_bytes = await resume.read()
         parsed_profile = parse_resume(pdf_bytes=pdf_bytes, bio=bio, interests=interests)
+        
+        # Persist to Databricks
+        save_student_profile(uid, parsed_profile)
+        
         return parsed_profile
     except GeminiServiceError as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
+        )
+    except DatabricksServiceError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Profile parsed but failed to save to Databricks."
         )
     except Exception as e:
         raise HTTPException(

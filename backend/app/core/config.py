@@ -45,9 +45,10 @@ class Settings(BaseSettings):
     firebase_credentials_path: str | None = None
     # Databricks
     # Name of the CLI profile in ~/.databrickscfg to use for unified auth.
-    # Optional — the Databricks service raises an explicit error at call-time.
     databricks_config_profile: str | None = None
+    databricks_warehouse_id: str | None = None
+    databricks_catalog: str | None = None
+    databricks_schema: str | None = None
 
 
 settings = Settings()
-
