@@ -1,24 +1,21 @@
+"""FastAPI application entry point."""
+
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from app.api import health, profile, opportunities, swipes
+
+from app.api.health import router as health_router
+from app.api.test_databricks_route import router as test_databricks_router
+from app.api.test_gemini_route import router as test_gemini_router
+from app.api.profile import router as profile_router
+from app.api.auth import router as auth_router
+from app.core.config import settings
 
 app = FastAPI(
-    title="Echelon API",
-    description="Campus Opportunity Navigator for Virginia Tech",
-    version="0.1.0",
+    title=settings.app_name,
+    debug=settings.debug,
 )
 
-# CORS — allow Expo dev server
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Tighten in production
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Register routers
-app.include_router(health.router)
-app.include_router(profile.router)
-app.include_router(opportunities.router)
-app.include_router(swipes.router)
+app.include_router(health_router)
+app.include_router(test_gemini_router)
+app.include_router(profile_router)
+app.include_router(test_databricks_router)
+app.include_router(auth_router)

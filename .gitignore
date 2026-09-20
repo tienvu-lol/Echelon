@@ -1,35 +1,14 @@
-# Secrets
 .env
 .env.*
 !.env.example
 
-# Python
 .venv/
 __pycache__/
-*.py[cod]
-*$py.class
-*.egg-info/
-dist/
-build/
-*.egg
 .pytest_cache/
-.mypy_cache/
+backend/gitignored/
 
-# Node / Expo
-node_modules/
-.expo/
-dist/
-web-build/
-*.tsbuildinfo
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
-.DS_Store
-Thumbs.db
-
-# UV
-.python-version
+# Local AI coding-tool configuration
+.agents/
+.ai-dev-kit/
+.gemini/
+GEMINI.md

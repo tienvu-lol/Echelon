@@ -1,179 +1,169 @@
-# API Contracts — Echelon
+# Backend API
 
-## Base URL
+Base URL:
+`http://localhost:8000`
 
-```
-http://localhost:8000
-```
+## GET /health
 
----
+Response:
 
-## Health
-
-### GET /health
-
-Returns server health status.
-
-**Response** `200`
-```json
 {
   "status": "ok"
 }
-```
 
----
+## GET /api/auth/me
 
-## Profile
+Requires: `Authorization: Bearer <Firebase ID Token>`
 
-### POST /api/profile/parse
-
-Parse a resume PDF and extract a structured student profile using Gemini.
-
-**Request**: `multipart/form-data`
-
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `resume` | File (PDF) | Yes | Resume document |
-| `bio` | string | No | Additional bio text |
-| `interests` | string | No | Comma-separated interests |
-
-**Response** `200` — `StudentProfile`
+Response:
 ```json
 {
-  "id": "uuid",
-  "major": "Computer Science",
-  "graduation_year": 2027,
-  "skills": ["Python", "TypeScript"],
-  "interests": ["AI", "Web Dev"],
-  "coursework": ["Data Structures", "ML"],
-  "experience": ["Google SWE Intern"],
-  "bio": "...",
-  "profile_text": "...",
-  "created_at": "2026-01-01T00:00:00Z"
+  "status": "authenticated",
+  "uid": "user123",
+  "email": "user@example.com",
+  "token_data": { ... }
 }
 ```
 
-### POST /api/profile
+## GET /api/profile/me
 
-Create a student profile from structured data.
+Requires: `Authorization: Bearer <Firebase ID Token>`
 
-**Request**: `application/json`
+Response: Returns the authenticated user's `StudentProfile` if it exists. Returns `404 Not Found` otherwise.
 ```json
 {
   "major": "Computer Science",
-  "graduation_year": 2027,
-  "skills": ["Python"],
-  "interests": ["AI"],
-  "coursework": [],
-  "experience": [],
-  "bio": "..."
+  "class_year": "Sophomore",
+  "skills": ["Python", "Java"],
+  "interests": ["AI", "Cybersecurity"],
+  "coursework": ["Data Structures"],
+  "experience": []
 }
 ```
 
-**Response** `200` — `StudentProfile` (same as above)
+## POST /api/profile/parse
+
+Requires: `Authorization: Bearer <Firebase ID Token>`
+
+Accepts:
+multipart/form-data
+
+Fields:
+- resume: PDF file
+- bio: optional string
+- interests: optional string
+
+Returns:
+
+{
+  "major": "Computer Science",
+  "class_year": "Sophomore",
+  "skills": ["Python", "Java"],
+  "interests": ["AI", "Cybersecurity"],
+  "coursework": ["Data Structures"],
+  "experience": []
+}
+
+## GET /opportunities/recommendations
+
+Query:
+student_id
+
+Returns:
+
+[
+  {
+    "id": "...",
+    "title": "...",
+    "organization": "...",
+    "description": "...",
+    "match_reason": "...",
+    "source_url": "...",
+    "contact_email": null
+  }
+]
 
 ---
 
-## Opportunities
+## Domain Models
 
-### GET /api/opportunities/recommendations
+These models describe the canonical JSON structure used internally and
+returned by API endpoints.  They are defined in `backend/app/models/`.
 
-Get personalized opportunity recommendations for a student.
+### StudentProfile
 
-**Query Parameters**
+`backend/app/models/student.py`
 
-| Param | Type | Required | Default | Description |
-|---|---|---|---|---|
-| `student_id` | string | Yes | — | Student UUID |
-| `limit` | integer | No | 10 | Max results (1-50) |
-
-**Response** `200`
 ```json
 {
-  "student_id": "uuid",
-  "opportunities": [
-    {
-      "id": "uuid",
-      "title": "ML Research Assistant",
-      "organization": "VT CS Department",
-      "opportunity_type": "research",
-      "description": "...",
-      "skills": ["Python", "NLP"],
-      "location": "Blacksburg, VA",
-      "paid": true,
-      "deadline": "2026-10-15",
-      "apply_url": "https://...",
-      "explanation": "This matches your NLP coursework and Python skills..."
-    }
-  ]
+  "major":      "Computer Science",
+  "class_year": "Sophomore",
+  "bio":        "Optional free-text bio.",
+  "skills":     ["Python", "Java"],
+  "interests":  ["AI", "Cybersecurity"],
+  "coursework": ["Data Structures"],
+  "experience": ["SWE Intern @ Acme"]
 }
 ```
+
+| Field        | Type           | Required | Notes            |
+|--------------|----------------|----------|------------------|
+| `major`      | string or null | No       |                  |
+| `class_year` | string or null | No       |                  |
+| `bio`        | string or null | No       |                  |
+| `skills`     | list[string]   | No       | Defaults to `[]` |
+| `interests`  | list[string]   | No       | Defaults to `[]` |
+| `coursework` | list[string]   | No       | Defaults to `[]` |
+| `experience` | list[string]   | No       | Defaults to `[]` |
 
 ---
 
-## Swipes
+### Opportunity
 
-### POST /api/swipes
+`backend/app/models/opportunity.py`
 
-Record a swipe on an opportunity.
-
-**Request**: `application/json`
 ```json
 {
-  "student_id": "uuid",
-  "opportunity_id": "uuid",
-  "direction": "right"
+  "id":               "opp-001",
+  "title":            "Research Assistant",
+  "organization":     "VT CS Department",
+  "opportunity_type": "research",
+  "description":      "Work on ML research.",
+  "source_url":       "https://example.vt.edu/opp/001",
+
+  "skills":           ["Python"],
+  "interests":        ["AI"],
+  "eligibility":      ["Undergraduate"],
+  "majors":           ["Computer Science"],
+  "class_years":      ["Sophomore", "Junior"],
+
+  "location":         "Blacksburg, VA",
+  "time_commitment":  "10 hrs/week",
+  "compensation":     "Unpaid",
+  "deadline":         "2026-12-01",
+  "apply_url":        "https://example.vt.edu/apply/001",
+  "contact_name":     null,
+  "contact_email":    null
 }
 ```
 
-**Response** `200`
-```json
-{
-  "id": "uuid",
-  "student_id": "uuid",
-  "opportunity_id": "uuid",
-  "direction": "right",
-  "created_at": "2026-01-01T00:00:00Z"
-}
-```
-
----
-
-## Saved
-
-### GET /api/saved
-
-Get all saved opportunities for a student.
-
-**Query Parameters**
-
-| Param | Type | Required | Description |
-|---|---|---|---|
-| `student_id` | string | Yes | Student UUID |
-
-**Response** `200`
-```json
-{
-  "student_id": "uuid",
-  "opportunities": []
-}
-```
-
-### POST /api/saved/{opportunity_id}
-
-Explicitly save an opportunity.
-
-**Query Parameters**
-
-| Param | Type | Required | Description |
-|---|---|---|---|
-| `student_id` | string | Yes | Student UUID |
-
-**Response** `200`
-```json
-{
-  "student_id": "uuid",
-  "opportunity_id": "uuid",
-  "created_at": "2026-01-01T00:00:00Z"
-}
-```
+| Field              | Type           | Required | Notes                                          |
+|--------------------|----------------|----------|------------------------------------------------|
+| `id`               | string         | **Yes**  |                                                |
+| `title`            | string         | **Yes**  |                                                |
+| `organization`     | string         | **Yes**  |                                                |
+| `opportunity_type` | string         | **Yes**  | e.g. research, job, club, scholarship          |
+| `description`      | string         | **Yes**  |                                                |
+| `source_url`       | string         | **Yes**  | Canonical link to opportunity listing          |
+| `skills`           | list[string]   | No       | Defaults to `[]`                               |
+| `interests`        | list[string]   | No       | Defaults to `[]`                               |
+| `eligibility`      | list[string]   | No       | Defaults to `[]`                               |
+| `majors`           | list[string]   | No       | Defaults to `[]`                               |
+| `class_years`      | list[string]   | No       | Defaults to `[]`                               |
+| `location`         | string or null | No       |                                                |
+| `time_commitment`  | string or null | No       |                                                |
+| `compensation`     | string or null | No       |                                                |
+| `deadline`         | string or null | No       | ISO 8601 date string                           |
+| `apply_url`        | string or null | No       |                                                |
+| `contact_name`     | string or null | No       | Never fabricated - only from real data         |
+| `contact_email`    | string or null | No       | Never fabricated - only from real data         |
