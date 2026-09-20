@@ -168,4 +168,32 @@ class TestAgentRoute:
 
         assert response.status_code == 500
         assert "Internal Server Error" in response.json()["detail"]
+        assert "Unexpected crash" not in response.json()["detail"]
 
+    def test_chat_route_missing_uid_returns_401(self):
+        """Chat route rejects token that has no uid."""
+        with patch("app.api.deps.FirebaseService.verify_token", return_value={"email": "nouid@vt.edu"}):
+            response = client.post(
+                "/api/agent/chat",
+                headers={"Authorization": "Bearer fake_token"},
+                json={"message": "Hello"},
+            )
+        assert response.status_code == 401
+
+    def test_chat_route_provider_error_returns_sanitized_500(self):
+        """Chat route returns sanitized 500 when Databricks or Gemini raises."""
+        from app.services.databricks_service import DatabricksServiceError
+
+        mock_user = {"uid": "user-456"}
+        with (
+            patch("app.api.deps.FirebaseService.verify_token", return_value=mock_user),
+            patch("app.api.agent.handle_chat", side_effect=DatabricksServiceError("Databricks secret timeout")),
+        ):
+            response = client.post(
+                "/api/agent/chat",
+                headers={"Authorization": "Bearer fake_token"},
+                json={"message": "Hello"},
+            )
+        assert response.status_code == 500
+        assert "Failed to process chat request." in response.json()["detail"]
+        assert "Databricks secret timeout" not in response.json()["detail"]

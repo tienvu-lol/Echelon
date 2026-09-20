@@ -167,13 +167,16 @@ def _execute_statement(
 # ---------------------------------------------------------------------------
 
 
-def setup_tables(include_career_preferences: bool = False) -> None:
+def setup_tables(
+    include_career_preferences: bool = False,
+    include_all: bool = False,
+) -> None:
     """Idempotent DDL for Echelon application tables.
 
     Creates:
     - ``student_profiles``
     - ``opportunities``
-    - optionally ``career_preferences``
+    - optionally ``career_preferences``, ``swipes``, ``saved_opportunities``
 
     Compatible with the live environment:
     - No DEFAULT CURRENT_TIMESTAMP() (column defaults disabled in workspace).
@@ -233,8 +236,31 @@ def setup_tables(include_career_preferences: bool = False) -> None:
     USING DELTA
     """)
 
+    if include_all:
+        include_career_preferences = True
+
     if include_career_preferences:
         setup_career_preferences_table()
+
+    if include_all:
+        _execute_statement("""
+        CREATE TABLE IF NOT EXISTS swipes (
+            student_id STRING NOT NULL,
+            opportunity_id STRING NOT NULL,
+            direction STRING NOT NULL,
+            created_at TIMESTAMP
+        )
+        USING DELTA
+        """)
+
+        _execute_statement("""
+        CREATE TABLE IF NOT EXISTS saved_opportunities (
+            student_id STRING NOT NULL,
+            opportunity_id STRING NOT NULL,
+            created_at TIMESTAMP
+        )
+        USING DELTA
+        """)
 
 
 def setup_career_preferences_table() -> None:
@@ -277,46 +303,68 @@ PHASE_2_OPPORTUNITY_COLUMNS = [
 
 
 def migrate_schema() -> dict[str, Any]:
-    """Safely migrate the live Databricks environment without dropping tables or rows.
-
-    Actions performed:
-    1. Ensures baseline tables exist via setup_tables().
-    2. Ensures career_preferences exists.
-    3. Inspects current columns in workspace.default.opportunities.
-    4. Adds any missing Phase 2 columns via ALTER TABLE ADD COLUMN.
-    5. Sets active = true for existing rows where active is NULL so historical
-       records (like the GCC grant) are not hidden from recommendation retrieval.
-
-    Returns:
-        Summary dict of migration operations performed.
-    """
+    """Safely migrate the live Databricks environment without dropping tables or rows."""
     logger.info("Starting safe Databricks schema migration...")
     summary: dict[str, Any] = {
-        "tables_checked": ["student_profiles", "opportunities", "career_preferences"],
+        "tables_checked": ["student_profiles", "opportunities", "career_preferences", "swipes", "saved_opportunities"],
         "columns_added": [],
         "rows_updated": 0,
     }
 
     # Step 1: Ensure baseline tables exist
-    setup_tables(include_career_preferences=True)
+    setup_tables(include_all=True)
 
-    # Step 2: Inspect existing columns in opportunities
-    desc_response = _execute_statement("DESCRIBE TABLE opportunities")
-    existing_cols = set()
-    if desc_response.result and desc_response.result.data_array:
-        for row in desc_response.result.data_array:
-            if row and row[0]:
-                col_name = str(row[0]).strip().lower()
-                if not col_name.startswith("#"):
-                    existing_cols.add(col_name)
+    def _ensure_columns(table_name: str, expected_columns: list[tuple[str, str]]) -> None:
+        desc_response = _execute_statement(f"DESCRIBE TABLE {table_name}")
+        existing_cols = set()
+        if desc_response.result and desc_response.result.data_array:
+            for row in desc_response.result.data_array:
+                if row and row[0]:
+                    col_name = str(row[0]).strip().lower()
+                    if not col_name.startswith("#"):
+                        existing_cols.add(col_name)
 
-    # Step 3: Add any missing Phase 2 columns
-    for col_name, col_type in PHASE_2_OPPORTUNITY_COLUMNS:
-        if col_name.lower() not in existing_cols:
-            logger.info("Adding column %s %s to opportunities table...", col_name, col_type)
-            alter_sql = f"ALTER TABLE opportunities ADD COLUMN {col_name} {col_type}"
-            _execute_statement(alter_sql)
-            summary["columns_added"].append(col_name)
+        for col_name, col_type in expected_columns:
+            if col_name.lower() not in existing_cols:
+                logger.info("Adding column %s.%s %s...", table_name, col_name, col_type)
+                alter_sql = f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type}"
+                _execute_statement(alter_sql)
+                # For opportunities we also record just the column name to maintain backward compatibility
+                # with the test suite expectations, for other tables we use table.column
+                if table_name == "opportunities":
+                    summary["columns_added"].append(col_name)
+                else:
+                    summary["columns_added"].append(f"{table_name}.{col_name}")
+
+    # Step 2: Add any missing Phase 2 columns
+    _ensure_columns("opportunities", PHASE_2_OPPORTUNITY_COLUMNS)
+
+    _ensure_columns("career_preferences", [
+        ("career_tracks", "STRING"),
+        ("preferred_role_types", "ARRAY<STRING>"),
+        ("preferred_locations", "ARRAY<STRING>"),
+        ("remote_preference", "STRING"),
+        ("industries_of_interest", "ARRAY<STRING>"),
+        ("technologies_to_use", "ARRAY<STRING>"),
+        ("technologies_to_learn", "ARRAY<STRING>"),
+        ("research_vs_industry", "STRING"),
+        ("startup_vs_large_company", "STRING"),
+        ("career_goals", "STRING"),
+        ("other_preferences", "STRING"),
+    ])
+
+    _ensure_columns("swipes", [
+        ("student_id", "STRING"),
+        ("opportunity_id", "STRING"),
+        ("direction", "STRING"),
+        ("created_at", "TIMESTAMP"),
+    ])
+
+    _ensure_columns("saved_opportunities", [
+        ("student_id", "STRING"),
+        ("opportunity_id", "STRING"),
+        ("created_at", "TIMESTAMP"),
+    ])
 
     # Step 4: Ensure historical rows have active = true
     update_sql = "UPDATE opportunities SET active = true WHERE active IS NULL"
@@ -590,12 +638,16 @@ def get_career_preferences(firebase_uid: str) -> Optional[CareerPreferences]:
 # Deserialization Helpers
 # ---------------------------------------------------------------------------
 
-_OPP_SELECT_COLS = (
-    "id, title, organization, opportunity_type, description, source_url, "
-    "skills, interests, eligibility, majors, class_years, "
-    "location, time_commitment, compensation, deadline, apply_url, "
-    "contact_name, contact_email"
+_OPPORTUNITY_COLUMNS = (
+    "id", "title", "organization", "opportunity_type", "description", "source_url",
+    "source_name", "source_age", "active", "first_seen_at", "last_seen_at",
+    "skills", "interests", "eligibility", "majors", "class_years",
+    "school_restrictions", "eligibility_notes", "degree_levels",
+    "work_authorization_requirements", "career_tracks", "location", "remote_status",
+    "time_commitment", "compensation", "deadline", "apply_url", "contact_name",
+    "contact_email",
 )
+_OPP_SELECT_COLS = ", ".join(_OPPORTUNITY_COLUMNS)
 
 
 def _parse_bool(val: Any, default: bool = True) -> bool:
@@ -705,27 +757,13 @@ def _row_to_opportunity(row: list, schema: Optional[dict[str, int]] = None) -> O
             contact_email=get_val("contact_email"),
         )
 
-    # Positional mapping fallback for _OPP_SELECT_COLS (matches test_opportunities.py)
-    return Opportunity(
-        id=row[0],
-        title=row[1],
-        organization=row[2],
-        opportunity_type=row[3],
-        description=row[4],
-        source_url=row[5],
-        skills=json.loads(row[6]) if row[6] else [],
-        interests=json.loads(row[7]) if row[7] else [],
-        eligibility=json.loads(row[8]) if row[8] else [],
-        majors=json.loads(row[9]) if row[9] else [],
-        class_years=json.loads(row[10]) if row[10] else [],
-        location=row[11] or None,
-        time_commitment=row[12] or None,
-        compensation=row[13] or None,
-        deadline=row[14] or None,
-        apply_url=row[15] or None,
-        contact_name=row[16] or None,
-        contact_email=row[17] or None,
-    )
+    if len(row) != len(_OPPORTUNITY_COLUMNS):
+        raise ValueError(
+            f"Row size mismatch in positional mapping. Expected "
+            f"{len(_OPPORTUNITY_COLUMNS)} cols, got {len(row)}"
+        )
+    canonical_schema = {name: index for index, name in enumerate(_OPPORTUNITY_COLUMNS)}
+    return _row_to_opportunity(row, schema=canonical_schema)
 
 
 # ---------------------------------------------------------------------------
@@ -930,31 +968,6 @@ def list_opportunities(limit: int = 100) -> list[Opportunity]:
     ):
         schema = {col.name: idx for idx, col in enumerate(response.manifest.schema.columns)}
 
-    return [_row_to_opportunity(row, schema=schema) for row in data]
-
-
-def get_active_opportunities() -> list[Opportunity]:
-    """Retrieves all active opportunities."""
-    statement = "SELECT * FROM opportunities WHERE active = true LIMIT 500"
-    response = _execute_statement(statement)
-
-    if not response.manifest or response.manifest.total_row_count == 0:
-        return []
-
-    data = response.result.data_array if response.result else None
-    if not data:
-        return []
-
-    schema = None
-    if (
-        response.manifest
-        and hasattr(response.manifest, "schema")
-        and response.manifest.schema
-        and hasattr(response.manifest.schema, "columns")
-        and response.manifest.schema.columns
-    ):
-        schema = {col.name: idx for idx, col in enumerate(response.manifest.schema.columns)}
-
     opportunities: list[Opportunity] = []
     for row in data:
         try:
@@ -963,4 +976,112 @@ def get_active_opportunities() -> list[Opportunity]:
             logger.warning("Failed to parse opportunity row: %s", exc)
             continue
 
+    return opportunities
+
+def save_swipe(student_id: str, opportunity_id: str, direction: str) -> None:
+    """Record a left or right swipe (idempotent MERGE)."""
+    _execute_statement(
+        """
+        MERGE INTO swipes target
+        USING (SELECT :sid AS student_id, :oid AS opportunity_id, :dir AS direction, current_timestamp() AS created_at) source
+        ON target.student_id = source.student_id AND target.opportunity_id = source.opportunity_id
+        WHEN MATCHED THEN UPDATE SET direction = source.direction, created_at = source.created_at
+        WHEN NOT MATCHED THEN INSERT (student_id, opportunity_id, direction, created_at)
+        VALUES (source.student_id, source.opportunity_id, source.direction, source.created_at)
+        """,
+        parameters=[
+            StatementParameterListItem(name="sid", value=student_id, type="STRING"),
+            StatementParameterListItem(name="oid", value=opportunity_id, type="STRING"),
+            StatementParameterListItem(name="dir", value=direction, type="STRING"),
+        ],
+    )
+
+def save_saved_opportunity(student_id: str, opportunity_id: str) -> None:
+    """Explicitly save an opportunity (idempotent MERGE)."""
+    _execute_statement(
+        """
+        MERGE INTO saved_opportunities target
+        USING (SELECT :sid AS student_id, :oid AS opportunity_id, current_timestamp() AS created_at) source
+        ON target.student_id = source.student_id AND target.opportunity_id = source.opportunity_id
+        WHEN NOT MATCHED THEN INSERT (student_id, opportunity_id, created_at)
+        VALUES (source.student_id, source.opportunity_id, source.created_at)
+        """,
+        parameters=[
+            StatementParameterListItem(name="sid", value=student_id, type="STRING"),
+            StatementParameterListItem(name="oid", value=opportunity_id, type="STRING"),
+        ],
+    )
+
+def remove_saved_opportunity(student_id: str, opportunity_id: str) -> None:
+    """Explicitly remove a saved opportunity."""
+    _execute_statement(
+        "DELETE FROM saved_opportunities WHERE student_id = :sid AND opportunity_id = :oid",
+        parameters=[
+            StatementParameterListItem(name="sid", value=student_id, type="STRING"),
+            StatementParameterListItem(name="oid", value=opportunity_id, type="STRING"),
+        ],
+    )
+
+def get_saved_opportunities(student_id: str) -> list[Opportunity]:
+    """Get all saved opportunities for a user."""
+    res = _execute_statement(
+        f"""
+        SELECT {_OPP_SELECT_COLS}
+        FROM opportunities o
+        JOIN saved_opportunities s ON o.id = s.opportunity_id
+        WHERE s.student_id = :sid
+        ORDER BY s.created_at DESC
+        """,
+        parameters=[
+            StatementParameterListItem(name="sid", value=student_id, type="STRING"),
+        ],
+    )
+
+    schema = None
+    if res.manifest and res.manifest.schema and res.manifest.schema.columns:
+        schema = {col.name: i for i, col in enumerate(res.manifest.schema.columns)}
+
+    results = []
+    if res.result and res.result.data_array:
+        results.extend(_row_to_opportunity(row, schema=schema) for row in res.result.data_array)
+        return results
+
+    for chunk in (res.manifest.chunks if res.manifest and res.manifest.chunks else []):
+        chunk_data = _get_client().statement_execution.get_statement_result_chunk_n(
+            statement_id=res.statement_id,
+            chunk_index=chunk.chunk_index,
+        )
+        if chunk_data.data_array:
+            for row in chunk_data.data_array:
+                results.append(_row_to_opportunity(row, schema=schema))
+
+    return results
+
+
+
+def get_active_opportunities(limit: int = 500) -> list[Opportunity]:
+    """Retrieve all active opportunities.
+
+    Args:
+        limit: Maximum number of opportunities to retrieve.
+
+    Returns:
+        List of active Opportunities.
+    """
+    statement = f"SELECT {_OPP_SELECT_COLS} FROM opportunities WHERE active = true LIMIT :limit"
+    response = _execute_statement(statement, parameters=[StatementParameterListItem(name="limit", value=str(limit), type="INT")])
+
+    opportunities = []
+    if response.result and response.result.data_array:
+        schema = None
+        if (
+            response.manifest
+            and hasattr(response.manifest, "schema")
+            and response.manifest.schema
+            and hasattr(response.manifest.schema, "columns")
+            and response.manifest.schema.columns
+        ):
+            schema = {col.name: idx for idx, col in enumerate(response.manifest.schema.columns)}
+        for row in response.result.data_array:
+            opportunities.append(_row_to_opportunity(row, schema=schema))
     return opportunities

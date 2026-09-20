@@ -37,3 +37,13 @@ def test_auth_me_invalid_token():
         )
         # HTTPException with status_code=401 is raised in get_current_user
         assert response.status_code == 401
+
+
+def test_auth_me_missing_uid():
+    """Test /api/auth/me returns 401 when token lacks a uid."""
+    with patch("app.api.deps.FirebaseService.verify_token", return_value={"email": "test@example.com"}):
+        response = client.get(
+            "/api/auth/me",
+            headers={"Authorization": "Bearer fake_valid_token"}
+        )
+        assert response.status_code == 401

@@ -126,7 +126,7 @@ class TestCLIScriptsSmoke:
                 "persisted": 5,
             }
             ingestion_main()
-            mock_pipe.assert_called_once_with(strict_tech_only=False, max_items=5)
+            mock_pipe.assert_called_once_with(source="vt", strict_tech_only=False, max_items=5)
 
     def test_seed_opportunities_script(self):
         from scripts import seed_opportunities as seed_mod

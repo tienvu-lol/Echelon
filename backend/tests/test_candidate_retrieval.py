@@ -120,3 +120,29 @@ class TestCandidateRetrieval:
         assert len(candidates) == 2
         assert candidates[0].id in ("db-opp-1", "db-opp-2")
 
+    def test_filters_expired_opportunities(self):
+        profile = StudentProfile()
+        prefs = CareerPreferences()
+
+        # Create an expired opp and a future opp
+        opp_expired = _make_opp("opp-expired")
+        opp_expired.deadline = "2020-01-01"  # way in the past
+
+        opp_future = _make_opp("opp-future")
+        opp_future.deadline = "2099-12-31"  # way in the future
+
+        opp_unknown = _make_opp("opp-unknown")
+        opp_unknown.deadline = "Rolling" # should not be filtered
+
+        candidates = get_top_candidates(
+            profile=profile,
+            preferences=prefs,
+            all_opportunities=[opp_expired, opp_future, opp_unknown],
+        )
+
+        assert len(candidates) == 2
+        candidate_ids = {c.id for c in candidates}
+        assert "opp-future" in candidate_ids
+        assert "opp-unknown" in candidate_ids
+        assert "opp-expired" not in candidate_ids
+

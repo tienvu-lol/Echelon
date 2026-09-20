@@ -1,12 +1,18 @@
-from fastapi import APIRouter, Depends, HTTPException
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.deps import get_current_user
+from app.services.databricks_service import DatabricksServiceError
 from app.services.echelon_agent_service import (
     AgentChatRequest,
     AgentChatResponse,
     AgentServiceError,
     handle_chat,
 )
+from app.services.gemini_service import GeminiServiceError
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/agent", tags=["agent"])
 
@@ -22,17 +28,31 @@ async def chat_with_agent(
     updates Databricks CareerPreferences if new context is learned, and returns
     the assistant's reply.
     """
+    uid = current_user.get("uid")
+    if not uid:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid user token.",
+        )
+
     try:
-        uid = current_user.get("uid")
         response = handle_chat(uid, request.message)
         return response
     except AgentServiceError as e:
+        logger.warning("Agent validation error for uid %s: %s", uid, e)
         raise HTTPException(
-            status_code=400,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
-    except Exception as e:
+    except (DatabricksServiceError, GeminiServiceError) as e:
+        logger.error("Provider failure in chat_with_agent for uid %s: %s", uid, e, exc_info=True)
         raise HTTPException(
-            status_code=500,
-            detail=f"Internal Server Error: {e!s}",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to process chat request.",
+        )
+    except Exception as e:
+        logger.error("Unexpected error in chat_with_agent for uid %s: %s", uid, e, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal Server Error.",
         )

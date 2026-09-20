@@ -38,10 +38,16 @@ def main() -> None:
         description="Run opportunity ingestion from source to Databricks."
     )
     parser.add_argument(
+        "--source",
+        choices=["vt", "simplify", "all"],
+        default="vt",
+        help="Source adapter to run (default: vt). Use 'all' or 'simplify' for broad scraping.",
+    )
+    parser.add_argument(
         "--max-items",
         type=int,
-        default=None,
-        help="Maximum number of passed opportunities to classify and persist.",
+        default=20,
+        help="Maximum number of passed opportunities to classify and persist (default: 20).",
     )
     parser.add_argument(
         "--allow-non-tech",
@@ -54,6 +60,7 @@ def main() -> None:
     logger.info("Initializing opportunity ingestion run...")
     try:
         results = run_ingestion_pipeline(
+            source=args.source,
             strict_tech_only=not args.allow_non_tech,
             max_items=args.max_items,
         )

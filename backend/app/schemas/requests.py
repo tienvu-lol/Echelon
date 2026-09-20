@@ -19,6 +19,5 @@ class ProfileCreateRequest(BaseModel):
 
 
 class SwipeRequest(BaseModel):
-    student_id: str
     opportunity_id: str
     direction: Literal["left", "right"]

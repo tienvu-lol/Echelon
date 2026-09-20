@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 
 from app.api.deps import get_current_user
@@ -10,6 +12,8 @@ from app.services.databricks_service import (
 )
 from app.services.gemini_service import GeminiServiceError, parse_resume
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/profile", tags=["profile"])
 
 
@@ -19,6 +23,10 @@ async def get_my_profile(current_user: dict = Depends(get_current_user)):
     Retrieve the authenticated user's profile from Databricks.
     """
     uid = current_user.get("uid")
+    if not uid:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user token."
+        )
     try:
         profile = get_student_profile(uid)
         if not profile:
@@ -26,10 +34,19 @@ async def get_my_profile(current_user: dict = Depends(get_current_user)):
                 status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found."
             )
         return profile
-    except DatabricksServiceError:
+    except HTTPException:
+        raise
+    except DatabricksServiceError as e:
+        logger.error("Databricks error in get_my_profile for uid %s: %s", uid, e, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve profile.",
+        )
+    except Exception as e:
+        logger.error("Unexpected error in get_my_profile for uid %s: %s", uid, e, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error.",
         )
 
 
@@ -65,18 +82,22 @@ async def parse_profile_route(
 
         return parsed_profile
     except GeminiServiceError as e:
+        logger.error("Gemini error parsing resume for uid %s: %s", uid, e, exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to parse resume with AI service.",
         )
-    except DatabricksServiceError:
+    except DatabricksServiceError as e:
+        logger.error("Databricks error saving parsed profile for uid %s: %s", uid, e, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Profile parsed but failed to save to Databricks.",
         )
     except Exception as e:
+        logger.error("Unexpected error in parse_profile for uid %s: %s", uid, e, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An unexpected error occurred: {e!s}",
+            detail="An unexpected error occurred while processing profile.",
         )
 
 
@@ -109,7 +130,14 @@ async def create_profile(
         save_student_profile(uid, profile)
         return profile
     except DatabricksServiceError as e:
+        logger.error("Databricks error saving profile for uid %s: %s", uid, e, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to save profile: {e!s}",
+            detail="Failed to save profile.",
+        )
+    except Exception as e:
+        logger.error("Unexpected error creating profile for uid %s: %s", uid, e, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error.",
         )

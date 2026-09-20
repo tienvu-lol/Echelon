@@ -16,6 +16,7 @@ dependencies = [
     "httpx>=0.28.1",
     "pydantic>=2.13.5",
     "pydantic-settings>=2.15.0",
+    "python-dateutil>=2.9.0.post0",
     "python-dotenv>=1.2.3",
     "python-multipart>=0.0.32",
     "uvicorn>=0.53.0",

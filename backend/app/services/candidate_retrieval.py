@@ -4,11 +4,26 @@ Pulls active opportunities and applies a heuristic scoring to find the top candi
 for Gemini to rerank.
 """
 
+from datetime import datetime
+
 from app.models.opportunity import Opportunity
 from app.models.recommendation import CareerPreferences
 from app.models.student import StudentProfile
 from app.services import databricks_service
 from app.services.eligibility_engine import INELIGIBLE, evaluate_eligibility
+
+
+def is_deadline_expired(deadline: str | None) -> bool:
+    """Conservatively check if a deadline has expired."""
+    if not deadline:
+        return False
+
+    try:
+        from dateutil.parser import parse
+        dt = parse(deadline, fuzzy=True).date()
+        return dt < datetime.now().date()
+    except Exception:
+        return False
 
 
 def get_top_candidates(
@@ -36,6 +51,9 @@ def get_top_candidates(
     preferred_tracks = set([ct.track for ct in preferences.career_tracks])
 
     for opp in all_opportunities:
+        if is_deadline_expired(opp.deadline):
+            continue
+
         # 1. Hard Filter via Eligibility Engine
         status, notes = evaluate_eligibility(profile, opp)
         if status == INELIGIBLE:

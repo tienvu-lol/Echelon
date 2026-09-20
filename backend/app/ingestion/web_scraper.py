@@ -7,7 +7,6 @@ university sites for internship opportunities.
 import hashlib
 import logging
 from collections.abc import Iterator
-from datetime import datetime
 from datetime import datetime, timezone
 from urllib.parse import urljoin
 
@@ -43,14 +42,12 @@ class WebScraperAdapter(BaseSourceAdapter):
         )
 
     def fetch_opportunities(self) -> Iterator[Opportunity]:
-        logger.info(f"Initiating generic web scrape for {self.target_url}")
         logger.info("Initiating generic web scrape for %s", self.target_url)
 
         try:
             response = self.client.get(self.target_url)
             response.raise_for_status()
         except Exception as e:
-            logger.error(f"Failed to fetch {self.target_url}: {e}")
             logger.error("Failed to fetch %s: %s", self.target_url, e)
             return
 

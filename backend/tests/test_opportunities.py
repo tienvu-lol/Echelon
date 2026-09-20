@@ -17,10 +17,13 @@ from unittest.mock import MagicMock, call, patch
 
 import pytest
 
-from app.models.opportunity import Opportunity
+from datetime import datetime, timezone
+
+from app.models.opportunity import CareerTrackAffinity, Opportunity
 from app.services.databricks_service import (
     DatabricksServiceError,
     _execute_statement,
+    get_active_opportunities,
     get_opportunity,
     list_opportunities,
     save_opportunities,
@@ -100,12 +103,23 @@ def _make_opp_row(opp: Opportunity) -> list:
         opp.opportunity_type,
         opp.description,
         opp.source_url,
+        opp.source_name,
+        opp.source_age or "",
+        opp.active,
+        opp.first_seen_at.isoformat() if opp.first_seen_at else "",
+        opp.last_seen_at.isoformat() if opp.last_seen_at else "",
         json.dumps(opp.skills),
         json.dumps(opp.interests),
         json.dumps(opp.eligibility),
         json.dumps(opp.majors),
         json.dumps(opp.class_years),
+        json.dumps(opp.school_restrictions),
+        json.dumps(opp.eligibility_notes),
+        json.dumps(opp.degree_levels),
+        json.dumps(opp.work_authorization_requirements),
+        json.dumps([ct.model_dump() for ct in opp.career_tracks]),
         opp.location or "",
+        opp.remote_status or "",
         opp.time_commitment or "",
         opp.compensation or "",
         opp.deadline or "",
@@ -583,3 +597,239 @@ class TestSetupTablesRegression:
         for col in ["firebase_uid", "skills", "interests", "coursework", "experience"]:
             assert col in student_ddl
 
+
+# ===========================================================================
+# Section 8 – Extended fields round trip and deserialization correctness
+# ===========================================================================
+
+
+class TestOpportunityExtendedFieldsRoundTrip:
+    """Verify that extended fields survive Databricks round trips and deserialize accurately."""
+
+    def _make_comprehensive_opportunity(self) -> Opportunity:
+        return Opportunity(
+            id="opp-ext-001",
+            title="Senior Distributed Systems Researcher",
+            organization="Virginia Tech National Security Institute",
+            opportunity_type="research",
+            description="Lead autonomous systems and edge networking research.",
+            source_url="https://nsi.vt.edu/opportunities/opp-ext-001",
+            source_name="VT NSI Portal",
+            source_age="1 week ago",
+            active=True,
+            first_seen_at=datetime(2026, 9, 1, 12, 0, 0, tzinfo=timezone.utc),
+            last_seen_at=datetime(2026, 9, 15, 18, 30, 0, tzinfo=timezone.utc),
+            skills=["Rust", "Kubernetes", "C++", "eBPF"],
+            interests=["Distributed Systems", "Cloud Security", "Operating Systems"],
+            eligibility=["Undergraduate", "Graduate"],
+            majors=["Computer Science", "Computer Engineering"],
+            class_years=["Junior", "Senior", "Master's"],
+            school_restrictions=["College of Engineering"],
+            eligibility_notes=["Must have completed CS 3214 Computer Systems."],
+            degree_levels=["BS", "MS"],
+            work_authorization_requirements=["US Citizen"],
+            career_tracks=[
+                CareerTrackAffinity(track="cloud_infrastructure", weight=0.95),
+                CareerTrackAffinity(track="software_engineering", weight=0.85),
+            ],
+            location="Blacksburg, VA",
+            remote_status="hybrid",
+            time_commitment="15 hours/week",
+            compensation="$25/hour",
+            deadline="2026-11-30",
+            apply_url="https://nsi.vt.edu/apply/opp-ext-001",
+            contact_name="Dr. Jane Doe",
+            contact_email="janedoe@vt.edu",
+        )
+
+    def test_save_opportunity_persists_all_extended_parameters(self, mocker):
+        """save_opportunity() accurately parameterizes every extended field."""
+        opp = self._make_comprehensive_opportunity()
+        _patch_settings(mocker)
+        mock_client = MagicMock()
+        mock_client.statement_execution.execute_statement.return_value = (
+            _make_statement_response("SUCCEEDED")
+        )
+
+        with patch("app.services.databricks_service.WorkspaceClient", return_value=mock_client):
+            save_opportunity(opp)
+
+        params = mock_client.statement_execution.execute_statement.call_args.kwargs["parameters"]
+        param_map = {p.name: p.value for p in params}
+
+        assert param_map["source_name"] == "VT NSI Portal"
+        assert param_map["source_age"] == "1 week ago"
+        assert param_map["active"] == "true"
+        assert "2026-09-01T12:00:00" in param_map["first_seen_at"]
+        assert "2026-09-15T18:30:00" in param_map["last_seen_at"]
+        assert json.loads(param_map["school_restrictions"]) == ["College of Engineering"]
+        assert json.loads(param_map["eligibility_notes"]) == ["Must have completed CS 3214 Computer Systems."]
+        assert json.loads(param_map["degree_levels"]) == ["BS", "MS"]
+        assert json.loads(param_map["work_authorization_requirements"]) == ["US Citizen"]
+        assert param_map["remote_status"] == "hybrid"
+
+        tracks_data = json.loads(param_map["career_tracks"])
+        assert len(tracks_data) == 2
+        assert tracks_data[0]["track"] == "cloud_infrastructure"
+        assert tracks_data[0]["weight"] == 0.95
+
+    def test_get_opportunity_deserializes_all_extended_fields_positional(self, mocker):
+        """get_opportunity() deserializes all 29 fields when schema manifest is omitted."""
+        opp = self._make_comprehensive_opportunity()
+        row = _make_opp_row(opp)
+
+        _patch_settings(mocker)
+        mock_client = MagicMock()
+        mock_client.statement_execution.execute_statement.return_value = (
+            _make_statement_response("SUCCEEDED", rows=[row], total_row_count=1)
+        )
+
+        with patch("app.services.databricks_service.WorkspaceClient", return_value=mock_client):
+            retrieved = get_opportunity(opp.id)
+
+        assert retrieved is not None
+        assert retrieved.id == opp.id
+        assert retrieved.source_name == "VT NSI Portal"
+        assert retrieved.source_age == "1 week ago"
+        assert retrieved.active is True
+        assert retrieved.first_seen_at is not None
+        assert retrieved.last_seen_at is not None
+        assert retrieved.school_restrictions == ["College of Engineering"]
+        assert retrieved.eligibility_notes == ["Must have completed CS 3214 Computer Systems."]
+        assert retrieved.degree_levels == ["BS", "MS"]
+        assert retrieved.work_authorization_requirements == ["US Citizen"]
+        assert retrieved.remote_status == "hybrid"
+        assert len(retrieved.career_tracks) == 2
+        assert retrieved.career_tracks[0].track == "cloud_infrastructure"
+        assert retrieved.career_tracks[0].weight == 0.95
+
+    def test_get_opportunity_deserializes_with_schema_manifest(self, mocker):
+        """get_opportunity() properly maps columns when schema columns manifest is present."""
+        from app.services.databricks_service import _OPP_SELECT_COLS
+
+        opp = self._make_comprehensive_opportunity()
+        # Row data is out of order, but manifest matches it
+        row = [
+            "Desc", opp.id, "VT CS", "Legacy Role", "internship", "https://vt.edu",
+            "VT", "14", True, "2024-01-01T00:00:00Z", "2024-01-02T00:00:00Z",
+            json.dumps(["Python"]), json.dumps(["AI"]), json.dumps(["Junior"]),
+            json.dumps(["CS"]), json.dumps(["2027"]),
+            "Blacksburg, VA", "10 hrs", "$15/hr", "2026-10-01",
+            "https://apply.vt.edu", "Contact", "contact@vt.edu",
+            json.dumps(["VT"]), json.dumps(["Must be VT"]), json.dumps(["Bachelors"]),
+            json.dumps(["US Citizen"]), json.dumps(["SWE"]), "hybrid"
+        ]
+
+        # Construct a schema mapping that matches the out-of-order row
+        manifest_cols = [
+            MagicMock(name="description"), MagicMock(name="id"), MagicMock(name="organization"),
+            MagicMock(name="title"), MagicMock(name="opportunity_type"), MagicMock(name="source_url"),
+            MagicMock(name="source_name"), MagicMock(name="source_age"), MagicMock(name="active"),
+            MagicMock(name="first_seen_at"), MagicMock(name="last_seen_at"),
+            MagicMock(name="skills"), MagicMock(name="interests"), MagicMock(name="experience_level"),
+            MagicMock(name="majors"), MagicMock(name="grad_year_expected"),
+            MagicMock(name="location"), MagicMock(name="time_commitment"), MagicMock(name="compensation"), MagicMock(name="deadline"),
+            MagicMock(name="apply_url"), MagicMock(name="contact_name"), MagicMock(name="contact_email"),
+            MagicMock(name="school_restrictions"), MagicMock(name="eligibility_notes"), MagicMock(name="degree_levels"),
+            MagicMock(name="work_authorization_requirements"), MagicMock(name="career_tracks"), MagicMock(name="remote_status")
+        ]
+
+        manifest_cols[0].name = "description"
+        manifest_cols[1].name = "id"
+        manifest_cols[2].name = "organization"
+        manifest_cols[3].name = "title"
+        manifest_cols[4].name = "opportunity_type"
+        manifest_cols[5].name = "source_url"
+        manifest_cols[6].name = "source_name"
+        manifest_cols[7].name = "source_age"
+        manifest_cols[8].name = "active"
+        manifest_cols[9].name = "first_seen_at"
+        manifest_cols[10].name = "last_seen_at"
+        manifest_cols[11].name = "skills"
+        manifest_cols[12].name = "interests"
+        manifest_cols[13].name = "experience_level"
+        manifest_cols[14].name = "majors"
+        manifest_cols[15].name = "grad_year_expected"
+        manifest_cols[16].name = "location"
+        manifest_cols[17].name = "time_commitment"
+        manifest_cols[18].name = "compensation"
+        manifest_cols[19].name = "deadline"
+        manifest_cols[20].name = "apply_url"
+        manifest_cols[21].name = "contact_name"
+        manifest_cols[22].name = "contact_email"
+        manifest_cols[23].name = "school_restrictions"
+        manifest_cols[24].name = "eligibility_notes"
+        manifest_cols[25].name = "degree_levels"
+        manifest_cols[26].name = "work_authorization_requirements"
+        manifest_cols[27].name = "career_tracks"
+        manifest_cols[28].name = "remote_status"
+
+        _patch_settings(mocker)
+        mock_client = MagicMock()
+        resp = _make_statement_response("SUCCEEDED", rows=[row], total_row_count=1)
+        resp.manifest.schema.columns = manifest_cols
+        mock_client.statement_execution.execute_statement.return_value = resp
+
+        with patch("app.services.databricks_service.WorkspaceClient", return_value=mock_client):
+            retrieved = get_opportunity(opp.id)
+
+        assert retrieved.id == opp.id
+        assert retrieved.title == "Legacy Role"
+        assert retrieved.description == "Desc"
+        assert retrieved.skills == ["Python"]
+
+    def test_get_opportunity_29_column_row_fallback(self, mocker):
+        """get_opportunity() supports 29-column mock rows without schema manifest."""
+        legacy_row = [
+            "opp-legacy", "Legacy Role", "VT CS", "internship", "Desc", "https://vt.edu",
+            "VT", "14", True, "2024-01-01T00:00:00Z", "2024-01-02T00:00:00Z",
+            json.dumps(["Python"]), json.dumps(["AI"]), json.dumps(["Junior"]),
+            json.dumps(["CS"]), json.dumps(["2027"]),
+            json.dumps(["VT"]), json.dumps(["Must be VT"]), json.dumps(["Bachelors"]),
+            json.dumps(["US Citizen"]), json.dumps(["SWE"]),
+            "Blacksburg, VA", "hybrid", "10 hrs", "$15/hr", "2026-10-01",
+            "https://apply.vt.edu", "Contact", "contact@vt.edu",
+        ]
+        assert len(legacy_row) == 29
+
+        _patch_settings(mocker)
+        mock_client = MagicMock()
+        mock_client.statement_execution.execute_statement.return_value = (
+            _make_statement_response("SUCCEEDED", rows=[legacy_row], total_row_count=1)
+        )
+
+        with patch("app.services.databricks_service.WorkspaceClient", return_value=mock_client):
+            retrieved = get_opportunity("opp-legacy")
+
+        assert retrieved.id == "opp-legacy"
+        assert retrieved.title == "Legacy Role"
+        assert retrieved.skills == ["Python"]
+        assert retrieved.remote_status == "hybrid"
+
+    def test_get_active_opportunities_deserializes_extended_fields(self, mocker):
+        """get_active_opportunities() queries canonical columns and deserializes extended fields."""
+        opp = self._make_comprehensive_opportunity()
+        row = _make_opp_row(opp)
+
+        _patch_settings(mocker)
+        mock_client = MagicMock()
+        mock_client.statement_execution.execute_statement.return_value = (
+            _make_statement_response("SUCCEEDED", rows=[row], total_row_count=1)
+        )
+
+        with patch("app.services.databricks_service.WorkspaceClient", return_value=mock_client):
+            active_opps = get_active_opportunities()
+
+        assert len(active_opps) == 1
+        retrieved = active_opps[0]
+        assert retrieved.id == opp.id
+        assert retrieved.source_name == "VT NSI Portal"
+        assert retrieved.active is True
+        assert retrieved.remote_status == "hybrid"
+        assert len(retrieved.career_tracks) == 2
+
+        # Verify SQL statement executed
+        statement = mock_client.statement_execution.execute_statement.call_args.kwargs["statement"]
+        assert "WHERE active = true" in statement
+        assert "school_restrictions" in statement
+        assert "career_tracks" in statement

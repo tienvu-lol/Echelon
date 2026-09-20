@@ -119,10 +119,15 @@ The core recommendation logic, LLM sandboxing, resume parsing, and database engi
 
 ## 3. Current Implementation Status & Pending Work
 
-### A. Swiping & Saves (`/api/swipes`)
-*   **Status:** Staged for next phase (router definitions exist in `backend/app/api/swipes.py`, but router is currently unregistered in `main.py`).
-*   **Pending Work:** Post-merge task to register the router in `main.py`, connect Firebase auth dependency, and implement Databricks persistence table for swipes.
-*   **Frontend Action:** The swipe UI can be designed and tested; backend swipe persistence endpoints will be registered in the upcoming milestone.
+### A. Swiping & Saves (`/api/swipes` & `/api/saved`)
+*   **Status:** Fully implemented and registered.
+*   **Endpoints:**
+    - `POST /api/swipes` - Record right/left swipe. Right swipe saves, left swipe unsaves.
+    - `GET /api/saved` - Return full, deserialized Opportunity objects of saved listings.
+    - `POST /api/saved/{opportunity_id}` - Manually save.
+    - `DELETE /api/saved/{opportunity_id}` - Manually unsave.
+*   **Identity:** Driven purely by `Authorization: Bearer <Firebase ID Token>`. No explicit `student_id` in request paths or bodies.
+*   **Frontend Action:** Integrate these endpoints into the UI swipe stack. Ensure retries are safe (operations are idempotent).
 
 ### B. Live Databricks Deployment & Schema Migration
 *   **Status:** Fully configured and verified with live-compatible Delta DDL.

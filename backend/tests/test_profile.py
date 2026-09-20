@@ -115,7 +115,7 @@ def test_parse_profile_rejects_non_pdf():
 
 
 def test_parse_profile_gemini_error():
-    """Ensure resume parsing error in Gemini returns 500."""
+    """Ensure resume parsing error in Gemini returns sanitized 500 without leaking raw details."""
     from app.services.gemini_service import GeminiServiceError
 
     mock_user = {"uid": "user123"}
@@ -127,7 +127,9 @@ def test_parse_profile_gemini_error():
                 files={"resume": ("test.pdf", b"dummy content", "application/pdf")},
             )
             assert response.status_code == 500
-            assert "Gemini rate limit" in response.json()["detail"]
+            assert "Failed to parse resume" in response.json()["detail"]
+            assert "Gemini rate limit" not in response.json()["detail"]
+
 
 
 def test_parse_profile_databricks_save_error():
@@ -210,3 +212,34 @@ def test_create_profile_databricks_error():
             assert response.status_code == 500
             assert "Failed to save profile" in response.json()["detail"]
 
+
+def test_get_my_profile_missing_uid_returns_401():
+    """Ensure GET /api/profile/me rejects decoded token without uid."""
+    with patch("app.api.deps.FirebaseService.verify_token", return_value={"email": "no-uid@vt.edu"}):
+        response = client.get(
+            "/api/profile/me",
+            headers={"Authorization": "Bearer fake_token"},
+        )
+        assert response.status_code == 401
+
+
+def test_parse_profile_missing_uid_returns_401():
+    """Ensure POST /api/profile/parse rejects decoded token without uid."""
+    with patch("app.api.deps.FirebaseService.verify_token", return_value={"email": "no-uid@vt.edu"}):
+        response = client.post(
+            "/api/profile/parse",
+            headers={"Authorization": "Bearer fake_token"},
+            files={"resume": ("test.pdf", b"%PDF-dummy", "application/pdf")},
+        )
+        assert response.status_code == 401
+
+
+def test_create_profile_missing_uid_returns_401():
+    """Ensure POST /api/profile rejects decoded token without uid."""
+    with patch("app.api.deps.FirebaseService.verify_token", return_value={"email": "no-uid@vt.edu"}):
+        response = client.post(
+            "/api/profile",
+            headers={"Authorization": "Bearer fake_token"},
+            json={"major": "CS", "graduation_year": 2027},
+        )
+        assert response.status_code == 401

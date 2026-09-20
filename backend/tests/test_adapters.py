@@ -59,6 +59,62 @@ class TestSimplifyJobsAdapter:
         assert opps == []
 
 
+from app.ingestion.virginia_tech import VirginiaTechAdapter
+import httpx
+
+class TestVirginiaTechAdapter:
+    SAMPLE_VT_HTML = """
+    <html>
+        <body>
+            <main>
+                <h1>GCC Undergraduate Research Grants</h1>
+                <p>The Global Change Center at Virginia Tech is pleased to announce...</p>
+                <p>Apply by November 15th.</p>
+            </main>
+        </body>
+    </html>
+    """
+
+    def test_scrapes_vt_pages(self, mocker):
+        adapter = VirginiaTechAdapter(urls=["https://vt.edu/mock-grant"])
+
+        mock_response = MagicMock()
+        mock_response.text = self.SAMPLE_VT_HTML
+        mock_response.raise_for_status = MagicMock()
+
+        # We need to mock httpx.Client.get because the adapter instantiates its own client if not provided,
+        # or we can pass a mock client.
+        mock_client = MagicMock(spec=httpx.Client)
+        mock_client.get.return_value = mock_response
+        adapter.client = mock_client
+
+        opps = list(adapter.fetch_opportunities())
+
+        assert len(opps) == 1
+        opp = opps[0]
+        assert opp.organization == "Virginia Tech"
+        assert opp.title == "GCC Undergraduate Research Grants"
+        assert opp.opportunity_type == "program"
+        assert opp.source_name == "Virginia Tech"
+        assert opp.apply_url == "https://vt.edu/mock-grant"
+        assert "Global Change Center" in opp.description
+        assert "Apply by November 15th." in opp.description
+
+        # verify career_tracks defaults
+        assert len(opp.career_tracks) >= 2
+        track_names = [ct.track for ct in opp.career_tracks]
+        assert "research" in track_names
+        assert "campus" in track_names
+
+    def test_handles_fetch_error(self, mocker):
+        adapter = VirginiaTechAdapter(urls=["https://vt.edu/mock-grant"])
+        mock_client = MagicMock(spec=httpx.Client)
+        mock_client.get.side_effect = httpx.RequestError("Network error")
+        adapter.client = mock_client
+
+        opps = list(adapter.fetch_opportunities())
+        assert opps == []
+
 class TestWebScraperAdapter:
     SAMPLE_HTML = """
     <html>
