@@ -15,4 +15,3 @@ router = APIRouter()
 def health() -> HealthResponse:
     """Return a simple liveness signal."""
     return HealthResponse(status="ok")
-

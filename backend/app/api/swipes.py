@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Query, Depends, HTTPException
+from fastapi import APIRouter, Depends, Query
+
 from app.config import Settings, get_settings
+from app.models.swipe import SavedOpportunity, Swipe
 from app.schemas.requests import SwipeRequest
 from app.schemas.responses import SwipeResponse
-from app.models.swipe import Swipe, SavedOpportunity
 
 router = APIRouter(prefix="/api", tags=["swipes"])
 

@@ -3,13 +3,14 @@
 Provider-independent.  No imports from Gemini, Databricks, or Firebase.
 """
 
-from typing import Optional
 from datetime import datetime
+
 from pydantic import BaseModel, Field
 
 
 class CareerTrackAffinity(BaseModel):
     """Represents how strongly a role matches a specific career track."""
+
     track: str
     weight: float
 
@@ -32,10 +33,10 @@ class Opportunity(BaseModel):
 
     # --- Ingestion & Source Metadata ---
     source_name: str = "Unknown"
-    source_age: Optional[str] = None
+    source_age: str | None = None
     active: bool = True
-    first_seen_at: Optional[datetime] = None
-    last_seen_at: Optional[datetime] = None
+    first_seen_at: datetime | None = None
+    last_seen_at: datetime | None = None
 
     # --- Filterable lists & Eligibility ---
     skills: list[str] = Field(default_factory=list)
@@ -52,13 +53,13 @@ class Opportunity(BaseModel):
     career_tracks: list[CareerTrackAffinity] = Field(default_factory=list)
 
     # --- Optional Job metadata ---
-    location: Optional[str] = None
-    remote_status: Optional[str] = None
-    time_commitment: Optional[str] = None
-    compensation: Optional[str] = None
-    deadline: Optional[str] = None
-    apply_url: Optional[str] = None
+    location: str | None = None
+    remote_status: str | None = None
+    time_commitment: str | None = None
+    compensation: str | None = None
+    deadline: str | None = None
+    apply_url: str | None = None
 
     # --- Contact (never fabricated ?" populated only from real data) ---
-    contact_name: Optional[str] = None
-    contact_email: Optional[str] = None
+    contact_name: str | None = None
+    contact_email: str | None = None

@@ -5,19 +5,21 @@ used by route handlers.  All provider-specific logic lives here; routes
 stay thin.
 """
 
-from typing import Optional, List
 import json
+
 from databricks.sdk import WorkspaceClient
-from databricks.sdk.service.sql import StatementParameterListItem
 from databricks.sdk.errors import DatabricksError
+from databricks.sdk.service.sql import StatementParameterListItem
 
 from app.core.config import settings
-from app.models.student import StudentProfile
 from app.models.opportunity import Opportunity
 from app.models.recommendation import CareerPreferences
+from app.models.student import StudentProfile
+
 
 class DatabricksServiceError(Exception):
     """Raised when the Databricks service cannot fulfil a request."""
+
 
 def _get_client() -> WorkspaceClient:
     """Build and return a configured WorkspaceClient."""
@@ -28,6 +30,7 @@ def _get_client() -> WorkspaceClient:
         kwargs["profile"] = settings.databricks_config_profile
     return WorkspaceClient(**kwargs)
 
+
 def get_current_user() -> str:
     """Return the display name of the currently authenticated workspace user."""
     client = _get_client()
@@ -37,17 +40,24 @@ def get_current_user() -> str:
     except DatabricksServiceError:
         raise
     except DatabricksError as exc:
-        raise DatabricksServiceError("Databricks workspace call failed. Check logs for details.") from exc
+        raise DatabricksServiceError(
+            "Databricks workspace call failed. Check logs for details."
+        ) from exc
     except Exception as exc:
-        raise DatabricksServiceError("Databricks provider request failed. Check logs for details.") from exc
+        raise DatabricksServiceError(
+            "Databricks provider request failed. Check logs for details."
+        ) from exc
 
-def _execute_statement(statement: str, parameters: list[StatementParameterListItem] = None):
+
+def _execute_statement(
+    statement: str, parameters: list[StatementParameterListItem] = None
+):
     """Executes a SQL statement via Databricks SDK."""
     if not settings.databricks_warehouse_id:
         raise DatabricksServiceError("DATABRICKS_WAREHOUSE_ID is not set.")
-        
+
     client = _get_client()
-    
+
     try:
         response = client.statement_execution.execute_statement(
             statement=statement,
@@ -55,11 +65,12 @@ def _execute_statement(statement: str, parameters: list[StatementParameterListIt
             catalog=settings.databricks_catalog,
             schema=settings.databricks_schema,
             parameters=parameters,
-            wait_timeout="50s"
+            wait_timeout="50s",
         )
         return response
     except Exception as e:
-        raise DatabricksServiceError(f"Failed to execute Databricks SQL: {str(e)}") from e
+        raise DatabricksServiceError(f"Failed to execute Databricks SQL: {e!s}") from e
+
 
 def setup_tables():
     """Idempotent setup for Databricks tables."""
@@ -138,6 +149,7 @@ def setup_tables():
     """
     _execute_statement(opp_sql)
 
+
 def save_student_profile(firebase_uid: str, profile: StudentProfile) -> None:
     statement = """
     MERGE INTO student_profiles t
@@ -167,36 +179,51 @@ def save_student_profile(firebase_uid: str, profile: StudentProfile) -> None:
     VALUES
         (s.firebase_uid, s.major, s.class_year, s.bio, s.skills, s.interests, s.coursework, s.experience)
     """
-    
+
     parameters = [
         StatementParameterListItem(name="uid", value=firebase_uid, type="STRING"),
-        StatementParameterListItem(name="major", value=profile.major or "", type="STRING"),
-        StatementParameterListItem(name="class_year", value=profile.class_year or "", type="STRING"),
+        StatementParameterListItem(
+            name="major", value=profile.major or "", type="STRING"
+        ),
+        StatementParameterListItem(
+            name="class_year", value=profile.class_year or "", type="STRING"
+        ),
         StatementParameterListItem(name="bio", value=profile.bio or "", type="STRING"),
-        StatementParameterListItem(name="skills", value=json.dumps(profile.skills), type="STRING"),
-        StatementParameterListItem(name="interests", value=json.dumps(profile.interests), type="STRING"),
-        StatementParameterListItem(name="coursework", value=json.dumps(profile.coursework), type="STRING"),
-        StatementParameterListItem(name="experience", value=json.dumps(profile.experience), type="STRING")
+        StatementParameterListItem(
+            name="skills", value=json.dumps(profile.skills), type="STRING"
+        ),
+        StatementParameterListItem(
+            name="interests", value=json.dumps(profile.interests), type="STRING"
+        ),
+        StatementParameterListItem(
+            name="coursework", value=json.dumps(profile.coursework), type="STRING"
+        ),
+        StatementParameterListItem(
+            name="experience", value=json.dumps(profile.experience), type="STRING"
+        ),
     ]
-    
+
     _execute_statement(statement, parameters)
 
-def get_student_profile(firebase_uid: str) -> Optional[StudentProfile]:
+
+def get_student_profile(firebase_uid: str) -> StudentProfile | None:
     statement = """
     SELECT major, class_year, bio, skills, interests, coursework, experience
     FROM student_profiles
     WHERE firebase_uid = :uid
     """
-    parameters = [StatementParameterListItem(name="uid", value=firebase_uid, type="STRING")]
+    parameters = [
+        StatementParameterListItem(name="uid", value=firebase_uid, type="STRING")
+    ]
     response = _execute_statement(statement, parameters)
-    
+
     if not response.manifest or response.manifest.total_row_count == 0:
         return None
-        
+
     data = response.result.data_array
     if not data or len(data) == 0:
         return None
-        
+
     row = data[0]
     return StudentProfile(
         major=row[0] if row[0] else None,
@@ -207,6 +234,7 @@ def get_student_profile(firebase_uid: str) -> Optional[StudentProfile]:
         coursework=json.loads(row[5]) if row[5] else [],
         experience=json.loads(row[6]) if row[6] else [],
     )
+
 
 def save_career_preferences(firebase_uid: str, prefs: CareerPreferences) -> None:
     statement = """
@@ -249,25 +277,64 @@ def save_career_preferences(firebase_uid: str, prefs: CareerPreferences) -> None
          s.industries_of_interest, s.technologies_to_use, s.technologies_to_learn, s.research_vs_industry,
          s.startup_vs_large_company, s.career_goals, s.other_preferences)
     """
-    
+
     parameters = [
         StatementParameterListItem(name="uid", value=firebase_uid, type="STRING"),
-        StatementParameterListItem(name="career_tracks", value=json.dumps([ct.model_dump() for ct in prefs.career_tracks]), type="STRING"),
-        StatementParameterListItem(name="preferred_role_types", value=json.dumps(prefs.preferred_role_types), type="STRING"),
-        StatementParameterListItem(name="preferred_locations", value=json.dumps(prefs.preferred_locations), type="STRING"),
-        StatementParameterListItem(name="remote_preference", value=prefs.remote_preference or "", type="STRING"),
-        StatementParameterListItem(name="industries_of_interest", value=json.dumps(prefs.industries_of_interest), type="STRING"),
-        StatementParameterListItem(name="technologies_to_use", value=json.dumps(prefs.technologies_to_use), type="STRING"),
-        StatementParameterListItem(name="technologies_to_learn", value=json.dumps(prefs.technologies_to_learn), type="STRING"),
-        StatementParameterListItem(name="research_vs_industry", value=prefs.research_vs_industry or "", type="STRING"),
-        StatementParameterListItem(name="startup_vs_large_company", value=prefs.startup_vs_large_company or "", type="STRING"),
-        StatementParameterListItem(name="career_goals", value=prefs.career_goals or "", type="STRING"),
-        StatementParameterListItem(name="other_preferences", value=prefs.other_preferences or "", type="STRING"),
+        StatementParameterListItem(
+            name="career_tracks",
+            value=json.dumps([ct.model_dump() for ct in prefs.career_tracks]),
+            type="STRING",
+        ),
+        StatementParameterListItem(
+            name="preferred_role_types",
+            value=json.dumps(prefs.preferred_role_types),
+            type="STRING",
+        ),
+        StatementParameterListItem(
+            name="preferred_locations",
+            value=json.dumps(prefs.preferred_locations),
+            type="STRING",
+        ),
+        StatementParameterListItem(
+            name="remote_preference", value=prefs.remote_preference or "", type="STRING"
+        ),
+        StatementParameterListItem(
+            name="industries_of_interest",
+            value=json.dumps(prefs.industries_of_interest),
+            type="STRING",
+        ),
+        StatementParameterListItem(
+            name="technologies_to_use",
+            value=json.dumps(prefs.technologies_to_use),
+            type="STRING",
+        ),
+        StatementParameterListItem(
+            name="technologies_to_learn",
+            value=json.dumps(prefs.technologies_to_learn),
+            type="STRING",
+        ),
+        StatementParameterListItem(
+            name="research_vs_industry",
+            value=prefs.research_vs_industry or "",
+            type="STRING",
+        ),
+        StatementParameterListItem(
+            name="startup_vs_large_company",
+            value=prefs.startup_vs_large_company or "",
+            type="STRING",
+        ),
+        StatementParameterListItem(
+            name="career_goals", value=prefs.career_goals or "", type="STRING"
+        ),
+        StatementParameterListItem(
+            name="other_preferences", value=prefs.other_preferences or "", type="STRING"
+        ),
     ]
-    
+
     _execute_statement(statement, parameters)
 
-def get_career_preferences(firebase_uid: str) -> Optional[CareerPreferences]:
+
+def get_career_preferences(firebase_uid: str) -> CareerPreferences | None:
     statement = """
     SELECT 
         career_tracks, preferred_role_types, preferred_locations, remote_preference,
@@ -276,16 +343,18 @@ def get_career_preferences(firebase_uid: str) -> Optional[CareerPreferences]:
     FROM career_preferences
     WHERE firebase_uid = :uid
     """
-    parameters = [StatementParameterListItem(name="uid", value=firebase_uid, type="STRING")]
+    parameters = [
+        StatementParameterListItem(name="uid", value=firebase_uid, type="STRING")
+    ]
     response = _execute_statement(statement, parameters)
-    
+
     if not response.manifest or response.manifest.total_row_count == 0:
         return None
-        
+
     data = response.result.data_array
     if not data or len(data) == 0:
         return None
-        
+
     row = data[0]
     return CareerPreferences(
         career_tracks=json.loads(row[0]) if row[0] else [],
@@ -301,7 +370,8 @@ def get_career_preferences(firebase_uid: str) -> Optional[CareerPreferences]:
         other_preferences=row[10] if row[10] else None,
     )
 
-def upsert_opportunities(opportunities: List[Opportunity]):
+
+def upsert_opportunities(opportunities: list[Opportunity]):
     """Batch upserts opportunities into Databricks."""
     for opp in opportunities:
         statement = """
@@ -350,54 +420,122 @@ def upsert_opportunities(opportunities: List[Opportunity]):
              s.eligibility_notes, s.degree_levels, s.work_authorization_requirements, s.career_tracks, s.location, s.remote_status,
              s.time_commitment, s.compensation, s.deadline, s.apply_url, s.contact_name, s.contact_email)
         """
-        
+
         parameters = [
             StatementParameterListItem(name="id", value=opp.id, type="STRING"),
             StatementParameterListItem(name="title", value=opp.title, type="STRING"),
-            StatementParameterListItem(name="organization", value=opp.organization, type="STRING"),
-            StatementParameterListItem(name="opportunity_type", value=opp.opportunity_type, type="STRING"),
-            StatementParameterListItem(name="description", value=opp.description, type="STRING"),
-            StatementParameterListItem(name="source_url", value=opp.source_url, type="STRING"),
-            StatementParameterListItem(name="source_name", value=opp.source_name, type="STRING"),
-            StatementParameterListItem(name="source_age", value=opp.source_age or "", type="STRING"),
-            StatementParameterListItem(name="active", value="true" if opp.active else "false", type="BOOLEAN"),
-            StatementParameterListItem(name="first_seen_at", value=opp.first_seen_at.isoformat() if opp.first_seen_at else "", type="TIMESTAMP"),
-            StatementParameterListItem(name="last_seen_at", value=opp.last_seen_at.isoformat() if opp.last_seen_at else "", type="TIMESTAMP"),
-            StatementParameterListItem(name="skills", value=json.dumps(opp.skills), type="STRING"),
-            StatementParameterListItem(name="interests", value=json.dumps(opp.interests), type="STRING"),
-            StatementParameterListItem(name="eligibility", value=json.dumps(opp.eligibility), type="STRING"),
-            StatementParameterListItem(name="majors", value=json.dumps(opp.majors), type="STRING"),
-            StatementParameterListItem(name="class_years", value=json.dumps(opp.class_years), type="STRING"),
-            StatementParameterListItem(name="school_restrictions", value=json.dumps(opp.school_restrictions), type="STRING"),
-            StatementParameterListItem(name="eligibility_notes", value=json.dumps(opp.eligibility_notes), type="STRING"),
-            StatementParameterListItem(name="degree_levels", value=json.dumps(opp.degree_levels), type="STRING"),
-            StatementParameterListItem(name="work_authorization_requirements", value=json.dumps(opp.work_authorization_requirements), type="STRING"),
-            StatementParameterListItem(name="career_tracks", value=json.dumps([ct.model_dump() for ct in opp.career_tracks]), type="STRING"),
-            StatementParameterListItem(name="location", value=opp.location or "", type="STRING"),
-            StatementParameterListItem(name="remote_status", value=opp.remote_status or "", type="STRING"),
-            StatementParameterListItem(name="time_commitment", value=opp.time_commitment or "", type="STRING"),
-            StatementParameterListItem(name="compensation", value=opp.compensation or "", type="STRING"),
-            StatementParameterListItem(name="deadline", value=opp.deadline or "", type="STRING"),
-            StatementParameterListItem(name="apply_url", value=opp.apply_url or "", type="STRING"),
-            StatementParameterListItem(name="contact_name", value=opp.contact_name or "", type="STRING"),
-            StatementParameterListItem(name="contact_email", value=opp.contact_email or "", type="STRING"),
+            StatementParameterListItem(
+                name="organization", value=opp.organization, type="STRING"
+            ),
+            StatementParameterListItem(
+                name="opportunity_type", value=opp.opportunity_type, type="STRING"
+            ),
+            StatementParameterListItem(
+                name="description", value=opp.description, type="STRING"
+            ),
+            StatementParameterListItem(
+                name="source_url", value=opp.source_url, type="STRING"
+            ),
+            StatementParameterListItem(
+                name="source_name", value=opp.source_name, type="STRING"
+            ),
+            StatementParameterListItem(
+                name="source_age", value=opp.source_age or "", type="STRING"
+            ),
+            StatementParameterListItem(
+                name="active", value="true" if opp.active else "false", type="BOOLEAN"
+            ),
+            StatementParameterListItem(
+                name="first_seen_at",
+                value=opp.first_seen_at.isoformat() if opp.first_seen_at else "",
+                type="TIMESTAMP",
+            ),
+            StatementParameterListItem(
+                name="last_seen_at",
+                value=opp.last_seen_at.isoformat() if opp.last_seen_at else "",
+                type="TIMESTAMP",
+            ),
+            StatementParameterListItem(
+                name="skills", value=json.dumps(opp.skills), type="STRING"
+            ),
+            StatementParameterListItem(
+                name="interests", value=json.dumps(opp.interests), type="STRING"
+            ),
+            StatementParameterListItem(
+                name="eligibility", value=json.dumps(opp.eligibility), type="STRING"
+            ),
+            StatementParameterListItem(
+                name="majors", value=json.dumps(opp.majors), type="STRING"
+            ),
+            StatementParameterListItem(
+                name="class_years", value=json.dumps(opp.class_years), type="STRING"
+            ),
+            StatementParameterListItem(
+                name="school_restrictions",
+                value=json.dumps(opp.school_restrictions),
+                type="STRING",
+            ),
+            StatementParameterListItem(
+                name="eligibility_notes",
+                value=json.dumps(opp.eligibility_notes),
+                type="STRING",
+            ),
+            StatementParameterListItem(
+                name="degree_levels", value=json.dumps(opp.degree_levels), type="STRING"
+            ),
+            StatementParameterListItem(
+                name="work_authorization_requirements",
+                value=json.dumps(opp.work_authorization_requirements),
+                type="STRING",
+            ),
+            StatementParameterListItem(
+                name="career_tracks",
+                value=json.dumps([ct.model_dump() for ct in opp.career_tracks]),
+                type="STRING",
+            ),
+            StatementParameterListItem(
+                name="location", value=opp.location or "", type="STRING"
+            ),
+            StatementParameterListItem(
+                name="remote_status", value=opp.remote_status or "", type="STRING"
+            ),
+            StatementParameterListItem(
+                name="time_commitment", value=opp.time_commitment or "", type="STRING"
+            ),
+            StatementParameterListItem(
+                name="compensation", value=opp.compensation or "", type="STRING"
+            ),
+            StatementParameterListItem(
+                name="deadline", value=opp.deadline or "", type="STRING"
+            ),
+            StatementParameterListItem(
+                name="apply_url", value=opp.apply_url or "", type="STRING"
+            ),
+            StatementParameterListItem(
+                name="contact_name", value=opp.contact_name or "", type="STRING"
+            ),
+            StatementParameterListItem(
+                name="contact_email", value=opp.contact_email or "", type="STRING"
+            ),
         ]
-        
+
         _execute_statement(statement, parameters)
 
-def get_active_opportunities() -> List[Opportunity]:
+
+def get_active_opportunities() -> list[Opportunity]:
     """Retrieves all active opportunities."""
     statement = "SELECT * FROM opportunities WHERE active = true LIMIT 500"
     response = _execute_statement(statement)
-    
+
     opportunities = []
     if not response.manifest or response.manifest.total_row_count == 0:
         return opportunities
-        
+
     data = response.result.data_array
     schema = {col.name: idx for idx, col in enumerate(response.manifest.schema.columns)}
-    
+
     for row in data:
+
         def get_val(name, default=None, is_json=False):
             if name not in schema:
                 return default
@@ -427,7 +565,9 @@ def get_active_opportunities() -> List[Opportunity]:
                 school_restrictions=get_val("school_restrictions", [], is_json=True),
                 eligibility_notes=get_val("eligibility_notes", [], is_json=True),
                 degree_levels=get_val("degree_levels", [], is_json=True),
-                work_authorization_requirements=get_val("work_authorization_requirements", [], is_json=True),
+                work_authorization_requirements=get_val(
+                    "work_authorization_requirements", [], is_json=True
+                ),
                 career_tracks=get_val("career_tracks", [], is_json=True),
                 location=get_val("location"),
                 remote_status=get_val("remote_status"),
@@ -436,10 +576,10 @@ def get_active_opportunities() -> List[Opportunity]:
                 deadline=get_val("deadline"),
                 apply_url=get_val("apply_url"),
                 contact_name=get_val("contact_name"),
-                contact_email=get_val("contact_email")
+                contact_email=get_val("contact_email"),
             )
             opportunities.append(opp)
-        except Exception as e:
+        except Exception:
             continue
-            
+
     return opportunities

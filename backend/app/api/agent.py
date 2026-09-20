@@ -1,7 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.deps import get_current_user
-from app.services.echelon_agent_service import handle_chat, AgentChatRequest, AgentChatResponse, AgentServiceError
+from app.services.echelon_agent_service import (
+    AgentChatRequest,
+    AgentChatResponse,
+    AgentServiceError,
+    handle_chat,
+)
 
 router = APIRouter(prefix="/api/agent", tags=["agent"])
 
@@ -12,7 +17,7 @@ async def chat_with_agent(
     current_user: dict = Depends(get_current_user),
 ):
     """Conversational endpoint for Echelon Agent.
-    
+
     Receives a user message, processes it via Gemini with strict safety harness,
     updates Databricks CareerPreferences if new context is learned, and returns
     the assistant's reply.
@@ -29,5 +34,5 @@ async def chat_with_agent(
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Internal Server Error: {str(e)}",
+            detail=f"Internal Server Error: {e!s}",
         )
