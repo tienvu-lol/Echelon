@@ -139,7 +139,7 @@ public final class APIService {
             // If backend returned empty cards or failed (e.g. brand new account, offline backend),
             // fallback to our robust curated opportunity catalog!
             if unswiped.isEmpty {
-                return MatchStore.shared.getFallbackBatch(limit: limit)
+                return [] // Removed mock fallback per requirements
             }
             return Array(unswiped.prefix(limit))
         }
@@ -400,6 +400,9 @@ public final class APIService {
         request.httpBody = try JSONSerialization.data(withJSONObject: payload)
         
         let (data, response) = try await session.data(for: request)
+        if let httpResponse = response as? HTTPURLResponse {
+            print("PROFILE SYNC: POST /api/profile -> HTTP \(httpResponse.statusCode)")
+        }
         guard let httpResponse = response as? HTTPURLResponse else {
             throw APIError.invalidResponse
         }
@@ -407,6 +410,7 @@ public final class APIService {
             let errorMsg = String(data: data, encoding: .utf8) ?? "Server error (\(httpResponse.statusCode))"
             throw APIError.requestFailed(statusCode: httpResponse.statusCode, message: errorMsg)
         }
+        print("PROFILE SYNC: success")
     }
     
     public func deleteAccount(studentId: String) async throws {

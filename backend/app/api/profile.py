@@ -78,7 +78,9 @@ async def parse_profile_route(
         parsed_profile = parse_resume(pdf_bytes=pdf_bytes, bio=bio, interests=interests)
 
         # Persist to Databricks
+        logger.info("Authenticated Firebase UID for profile save: %s", uid)
         save_student_profile(uid, parsed_profile)
+        logger.info("Successfully persisted profile for Firebase UID: %s", uid)
 
         return parsed_profile
     except GeminiServiceError as e:
@@ -127,7 +129,9 @@ async def create_profile(
     )
 
     try:
+        logger.info("Authenticated Firebase UID for profile save: %s", uid)
         save_student_profile(uid, profile)
+        logger.info("Successfully persisted profile for Firebase UID: %s", uid)
         return profile
     except DatabricksServiceError as e:
         logger.error("Databricks error saving profile for uid %s: %s", uid, e, exc_info=True)

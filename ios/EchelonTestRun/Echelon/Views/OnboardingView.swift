@@ -906,7 +906,9 @@ struct OnboardingView: View {
         
         Task {
             do {
+                print("PROFILE SYNC: attempting onboarding save...")
                 try await APIService.shared.updateStudentProfile(studentId: profile.id, profile: profile)
+                print("PROFILE SYNC: onboarding save successful")
                 
                 await MainActor.run {
                     self.isSaving = false
@@ -915,6 +917,7 @@ struct OnboardingView: View {
                     }
                 }
             } catch {
+                print("PROFILE SYNC: onboarding save failed: \(error.localizedDescription)")
                 await MainActor.run {
                     self.isSaving = false
                     self.errorMessage = "Failed to save profile: \(error.localizedDescription)\n\nPlease ensure your backend is reachable at \(APIService.shared.baseURL) and try again."

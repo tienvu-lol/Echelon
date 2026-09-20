@@ -238,6 +238,43 @@ class ExploreViewController: UIViewController, OpportunityCardDelegate {
                     }
                     self.renderCards()
                 }
+            } catch APIError.profileRequired {
+                // Profile not found on server — try self-healing: POST local profile then retry once
+                print("LIVE RECS: got 404 profileRequired, attempting self-heal POST /api/profile")
+                let localProfile = await MatchStore.shared.studentProfile
+                do {
+                    try await APIService.shared.updateStudentProfile(studentId: localProfile.id, profile: localProfile)
+                    print("PROFILE SYNC: self-heal succeeded, retrying recommendations")
+                    // Retry once after posting profile
+                    do {
+                        let batch = try await APIService.shared.getOpportunityBatch(
+                            studentId: localProfile.id,
+                            limit: self.batchSize,
+                            isRefresh: isRefresh
+                        )
+                        await MainActor.run {
+                            self.isLoadingBatch = false
+                            self.loadingIndicator.stopAnimating()
+                            self.batchOpportunities = Array(batch.opportunities.prefix(self.batchSize))
+                            self.renderCards()
+                        }
+                    } catch {
+                        await MainActor.run {
+                            self.isLoadingBatch = false
+                            self.loadingIndicator.stopAnimating()
+                            self.batchOpportunities = []
+                            self.showErrorState(message: "Your profile was saved but no opportunities were found yet. Check back soon!")
+                        }
+                    }
+                } catch {
+                    print("PROFILE SYNC: self-heal failed — \(error)")
+                    await MainActor.run {
+                        self.isLoadingBatch = false
+                        self.loadingIndicator.stopAnimating()
+                        self.batchOpportunities = []
+                        self.showErrorState(message: "Profile not found. Please complete onboarding or check your connection.")
+                    }
+                }
             } catch {
                 await MainActor.run {
                     self.isLoadingBatch = false
