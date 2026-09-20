@@ -24,7 +24,6 @@ client = TestClient(app)
 
 def _make_sample_student(uid: str = "vt-student-1") -> StudentProfile:
     return StudentProfile(
-        id=uid,
         major="Computer Science",
         class_year="Junior",
         bio="Passionate about systems and distributed computing.",

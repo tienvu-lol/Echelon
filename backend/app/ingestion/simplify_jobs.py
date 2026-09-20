@@ -3,13 +3,17 @@
 Scrapes the Summer 2027 Internships README.md.
 """
 
+import hashlib
+import logging
 import re
 import urllib.request
 from collections.abc import Iterator
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.ingestion.base import BaseSourceAdapter
 from app.models.opportunity import Opportunity
+
+logger = logging.getLogger(__name__)
 
 
 class SimplifyJobsAdapter(BaseSourceAdapter):
@@ -25,7 +29,7 @@ class SimplifyJobsAdapter(BaseSourceAdapter):
             with urllib.request.urlopen(req) as response:
                 content = response.read().decode("utf-8")
         except Exception as e:
-            print(f"Failed to fetch {self.URL}: {e}")
+            logger.error("Failed to fetch %s: %s", self.URL, e)
             return
 
         # Markdown table parsing
@@ -78,10 +82,6 @@ class SimplifyJobsAdapter(BaseSourceAdapter):
                         continue
 
                     # create ID deterministically based on URL and role to avoid duplicates
-                    # or just use uuid since we'll upsert by URL ideally, but schema has ID as primary key.
-                    # Actually, our schema has id as primary key. Let's make deterministic ID
-                    import hashlib
-
                     hash_str = f"{company}{role_raw}{apply_url}".encode()
                     opp_id = hashlib.md5(hash_str).hexdigest()
 
@@ -96,8 +96,8 @@ class SimplifyJobsAdapter(BaseSourceAdapter):
                         location=location_raw,
                         apply_url=apply_url,
                         active=True,
-                        first_seen_at=datetime.utcnow(),
-                        last_seen_at=datetime.utcnow(),
+                        first_seen_at=datetime.now(timezone.utc),
+                        last_seen_at=datetime.now(timezone.utc),
                     )
 
 
