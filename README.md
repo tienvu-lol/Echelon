@@ -4,6 +4,20 @@
 
 Echelon helps Virginia Tech students discover campus opportunities (internships, research, jobs, organizations, hackathons, scholarships, and more) through a Tinder-style swipe interface powered by AI.
 
+## App Preview
+
+<p align="center">
+  <img src="docs/images/discover.png" width="30%" />
+  <img src="docs/images/discover-match.png" width="30%" />
+  <img src="docs/images/discover-pass.png" width="30%" />
+</p>
+
+<p align="center">
+  <img src="docs/images/opportunity-details.png" width="30%" />
+  <img src="docs/images/matches.png" width="30%" />
+  <img src="docs/images/profile.png" width="30%" />
+</p>
+
 ## Architecture
 
 ```

@@ -36,7 +36,7 @@ public enum APIError: LocalizedError {
 public final class APIService {
     public static let shared = APIService()
     
-    public var baseURL = "http://172.30.65.137:8000"
+    public var baseURL = "http://172.29.56.113:8000"
     private let session = URLSession.shared
     
     private init() {}

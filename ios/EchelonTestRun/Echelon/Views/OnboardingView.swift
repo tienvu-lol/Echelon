@@ -100,7 +100,10 @@ struct OnboardingView: View {
             }
         }
         .alert("Unable to Complete Onboarding", isPresented: $showErrorAlert) {
-            Button("OK", role: .cancel) { }
+            Button("Continue Offline") {
+                skipOnboarding()
+            }
+            Button("Cancel", role: .cancel) { }
         } message: {
             Text(errorMessage ?? "An error occurred while saving your profile.")
         }
@@ -132,11 +135,21 @@ struct OnboardingView: View {
                 
                 Spacer()
                 
-                Button("Skip") {
-                    goToNextStep()
+                HStack(spacing: 12) {
+                    if currentStep < totalSteps {
+                        Button("Skip") {
+                            goToNextStep()
+                        }
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(AppTheme.SwiftUIColors.textTertiary)
+                    }
+                    
+                    Button("Skip All") {
+                        skipOnboarding()
+                    }
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(AppTheme.SwiftUIColors.cyan)
                 }
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(AppTheme.SwiftUIColors.textTertiary)
             }
             .padding(.horizontal, 24)
             .padding(.top, 16)
@@ -617,33 +630,37 @@ struct OnboardingView: View {
                         .shadow(color: AppTheme.SwiftUIColors.blue.opacity(0.4), radius: 8, x: 0, y: 3)
                     }
                 } else {
-                    Button(action: {
-                        completeOnboarding()
-                    }) {
-                        HStack(spacing: 8) {
-                            if isSaving {
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                            } else {
+                    VStack(spacing: 12) {
+                        Button(action: {
+                            completeOnboarding()
+                        }) {
+                            HStack(spacing: 8) {
                                 Image(systemName: "sparkles")
                                 Text("Complete Setup & Start Matching")
                             }
-                        }
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 52)
-                        .background(
-                            LinearGradient(
-                                colors: [AppTheme.SwiftUIColors.green, AppTheme.SwiftUIColors.cyan],
-                                startPoint: .leading,
-                                endPoint: .trailing
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 52)
+                            .background(
+                                LinearGradient(
+                                    colors: [AppTheme.SwiftUIColors.green, AppTheme.SwiftUIColors.cyan],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
                             )
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radii.r16))
-                        .shadow(color: AppTheme.SwiftUIColors.green.opacity(0.4), radius: 10, x: 0, y: 4)
+                            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radii.r16))
+                            .shadow(color: AppTheme.SwiftUIColors.green.opacity(0.4), radius: 10, x: 0, y: 4)
+                        }
+                        
+                        Button(action: {
+                            skipOnboarding()
+                        }) {
+                            Text("Skip & Continue Offline")
+                                .font(.system(size: 13.5, weight: .medium))
+                                .foregroundColor(AppTheme.SwiftUIColors.textSecondary)
+                        }
                     }
-                    .disabled(isSaving)
                 }
             }
             .padding(.horizontal, 24)
@@ -875,10 +892,7 @@ struct OnboardingView: View {
         }
     }
     
-    private func completeOnboarding() {
-        isSaving = true
-        errorMessage = nil
-        
+    private func saveLocalProfile() {
         var profile = matchStore.studentProfile
         if !name.isEmpty { profile.name = name }
         if !university.isEmpty { profile.university = university }
@@ -903,26 +917,32 @@ struct OnboardingView: View {
         }
         
         matchStore.updateProfile(profile)
+    }
+    
+    private func skipOnboarding() {
+        saveLocalProfile()
+        withAnimation {
+            self.appState.hasCompletedOnboarding = true
+        }
+    }
+    
+    private func completeOnboarding() {
+        saveLocalProfile()
+        let profile = matchStore.studentProfile
         
+        // Immediately navigate to main app so the user is never stuck without a backend connection
+        withAnimation {
+            self.appState.hasCompletedOnboarding = true
+        }
+        
+        // Asynchronous background sync: push to backend if available
         Task {
             do {
-                print("PROFILE SYNC: attempting onboarding save...")
+                print("PROFILE SYNC: attempting background onboarding save...")
                 try await APIService.shared.updateStudentProfile(studentId: profile.id, profile: profile)
-                print("PROFILE SYNC: onboarding save successful")
-                
-                await MainActor.run {
-                    self.isSaving = false
-                    withAnimation {
-                        self.appState.hasCompletedOnboarding = true
-                    }
-                }
+                print("PROFILE SYNC: background onboarding save successful")
             } catch {
-                print("PROFILE SYNC: onboarding save failed: \(error.localizedDescription)")
-                await MainActor.run {
-                    self.isSaving = false
-                    self.errorMessage = "Failed to save profile: \(error.localizedDescription)\n\nPlease ensure your backend is reachable at \(APIService.shared.baseURL) and try again."
-                    self.showErrorAlert = true
-                }
+                print("PROFILE SYNC: background onboarding save skipped/failed (offline mode): \(error.localizedDescription)")
             }
         }
     }
